@@ -5,7 +5,9 @@ Simplified checks; only uses numpy. Interpolation is linear.
 
 from __future__ import annotations
 
+from typing import Union
 import numpy as np
+from scipy.interpolate import CubicSpline
 
 
 def _rotate_unit_x_batch(qs):  # type: ignore
@@ -26,6 +28,8 @@ def _rotate_unit_x_batch(qs):  # type: ignore
 	return out if out.shape[1] > 1 else out[:, 0]
 
 
+
+
 def myMeasurementLikelihoodFcn(
 	x_pred,
 	y,
@@ -35,7 +39,7 @@ def myMeasurementLikelihoodFcn(
 	n_samples=10000,
 	sigma=15.0,
 	bin_width=0.05,
-):  # type: ignore
+)-> Union[np.ndarray, float]:  # type: ignore
 	# Parse inputs
 	y = np.asarray(y, dtype=float).reshape(-1)
 	# Minimal shape assumption
@@ -53,7 +57,7 @@ def myMeasurementLikelihoodFcn(
 	# Avoid division by exact zero by nudging extremely small denominators
 	eps = 1e-12
 	denom = np.where(np.abs(denom) < eps, np.sign(denom) * eps, denom)
-	samples = (du + Gx) / denom
+	samples: np.ndarray = (du + Gx) / denom
 
 	# Compute predicted slope from orientation
 	q = np.asarray(x_pred, dtype=float)
@@ -83,28 +87,39 @@ def myMeasurementLikelihoodFcn(
 	else:
 		if abs(dv_pred) < eps:
 			dv_pred = eps if dv_pred == 0 else np.sign(dv_pred) * eps
-	x_predicted = du_pred / dv_pred
+	x_predicted: Union[np.ndarray, float] = du_pred / dv_pred
 
 	# Histogram-based likelihood P(samples at x_predicted)
 	bw = float(bin_width)
-	bw_half = bw / 2.0
-	s_min, s_max = samples.min(), samples.max()
+	s_min, s_max = float(samples.min()), float(samples.max())
 	if not np.isfinite(s_min) or not np.isfinite(s_max) or s_min == s_max:
 		# Degenerate sampling; return near-zero likelihood
 		return 0.0
 
-	# Create edges similar to MATLAB's 'BinWidth'
-	# Ensure at least two edges
-	edges = np.arange(s_min, s_max + bw, bw)
-	if edges.size < 2:
-		edges = np.array([s_min - bw, s_min + bw])
+	# Cap the number of bins (MATLAB histcounts effectively limits to 65536)
+	max_bins = 65536
+	span = float(s_max - s_min)
+	bw_eff: float = float(bw)
+	if span / bw_eff > max_bins:
+		bw_eff = float(span / max_bins)
+	
+	bw_half = bw_eff / 2.0
 
+	# Create edges with the (possibly) increased bin width
+	edges = np.arange(s_min, s_max + bw_eff, bw_eff, dtype=float)
+	if edges.size < 2:
+		edges = np.array([s_min - bw_eff, s_min + bw_eff])
+
+	counts: np.ndarray
+	edges: np.ndarray
 	counts, edges = np.histogram(samples, bins=edges)
-	bin_centers = edges[:-1] + bw_half
-	density = counts.astype(float) / float(n_samples)
+	bin_centers: np.ndarray = edges[:-1] + bw_half
+	density: np.ndarray = counts.astype(float) / float(n_samples)
 
 	# Linear interpolation (simple, low-complexity replacement for 'spline')
-	likelihood = np.interp(x_predicted, bin_centers, density, left=0.0, right=0.0)
+	# Cubic spline (MATLAB 'spline' equivalent); allow extrapolation then clamp to >=0
+	likelihood = CubicSpline(bin_centers, density, extrapolate=True)(x_predicted)
+	
 	return np.maximum(0.0, likelihood)
 
 
