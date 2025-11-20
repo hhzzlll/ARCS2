@@ -116,7 +116,6 @@ def myMeasurementLikelihoodFcn(
 	bin_centers: np.ndarray = edges[:-1] + bw_half
 	density: np.ndarray = counts.astype(float) / float(n_samples)
 
-	# Linear interpolation (simple, low-complexity replacement for 'spline')
 	# Cubic spline (MATLAB 'spline' equivalent); allow extrapolation then clamp to >=0
 	likelihood = CubicSpline(bin_centers, density, extrapolate=True)(x_predicted)
 	
