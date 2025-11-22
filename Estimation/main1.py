@@ -176,7 +176,7 @@ def main():
     idx_sync_kpts = other_params.idx_sync_kpts
     
     # 设置随机种子（模拟 MATLAB 的 rng("default")）
-    np.random.seed(0)
+    np.random.seed(42)
     
     print("配置参数已加载:")
     print(f"IMU频率: {hz_imu} Hz")
@@ -196,6 +196,17 @@ def main():
         # 只保留数值列
         imu_farm_df = imu_farm_df.select_dtypes(include=[np.number])
         imu_uarm_df = imu_uarm_df.select_dtypes(include=[np.number])
+
+        # 使用列名而不是位置索引提取角速度列
+        gyr_cols = ['Gyr_X', 'Gyr_Y', 'Gyr_Z']
+        missing_farm = [c for c in gyr_cols if c not in imu_farm_df.columns]
+        missing_uarm = [c for c in gyr_cols if c not in imu_uarm_df.columns]
+        if missing_farm:
+            raise ValueError(f"前臂 IMU 数据缺少角速度列: {missing_farm}")
+        if missing_uarm:
+            raise ValueError(f"上臂 IMU 数据缺少角速度列: {missing_uarm}")
+        gyr_farm = imu_farm_df[gyr_cols].to_numpy(dtype=float)
+        gyr_uarm = imu_uarm_df[gyr_cols].to_numpy(dtype=float)
         image_df = image_df.select_dtypes(include=[np.number])
         
         # 转换为 numpy 数组，确保数值类型
@@ -350,7 +361,7 @@ def main():
     # 准备角速度数据
     w_se_farm = np.column_stack([
         t_imu_farm[idx_imu_start:] * 1e-6,
-        np.deg2rad(imu_farm[idx_imu_start:, 9:12])  # 角速度列
+        np.deg2rad(gyr_farm[idx_imu_start:, :])  # 角速度列 (Gyr_X,Gyr_Y,Gyr_Z)
     ])
     w_se_farm[:, 1] -= bias_farm[0]
     w_se_farm[:, 2] -= bias_farm[1]
@@ -358,7 +369,7 @@ def main():
     
     w_se_uarm = np.column_stack([
         t_imu_farm[idx_imu_start:] * 1e-6,
-        np.deg2rad(imu_uarm[idx_imu_start:, 9:12])  # 角速度列
+        np.deg2rad(gyr_uarm[idx_imu_start:, :])  # 角速度列 (Gyr_X,Gyr_Y,Gyr_Z)
     ])
     w_se_uarm[:, 1] -= bias_uarm[0]
     w_se_uarm[:, 2] -= bias_uarm[1]

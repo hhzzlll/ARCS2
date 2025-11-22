@@ -264,13 +264,28 @@ def make_trc(config_dict, Q, keypoints_names, f_range, id_person=-1):
         dest_trc = os.path.join(dest_dir, 'ground.trc')
         shutil.copyfile(trc_path, dest_trc)
 
-        # Convert TRC (tab-delimited) to CSV (comma-delimited) with fixed name
+        # Convert TRC to CSV and modify lines:
+        # - remove lines 1, 2, 3 (1-based)
+        # - insert one empty line after line 2 (1-based) of the remaining content
         dest_csv = os.path.join(dest_dir, 'ground.csv')
         with open(dest_trc, 'r', encoding='utf-8', errors='ignore') as fin:
-            trc_content = fin.read()
-        csv_content = trc_content.replace('\t', ',')
+            trc_lines = fin.read().splitlines()
+
+        # Convert tabs to commas per line
+        csv_lines = [line.replace('\t', ',') for line in trc_lines]
+
+        # Remove first three lines if present
+        if len(csv_lines) >= 3:
+            csv_lines = csv_lines[3:]
+        else:
+            csv_lines = []
+
+        # Insert an empty line after the 2nd line (1-based) of the remaining content
+        insert_pos = 2 if len(csv_lines) >= 2 else len(csv_lines)
+        csv_lines.insert(insert_pos, '')
+
         with open(dest_csv, 'w', encoding='utf-8', newline='') as fout:
-            fout.write(csv_content)
+            fout.write('\n'.join(csv_lines) + '\n')
 
         logging.info(f"Saved ground copies to {dest_trc} and {dest_csv}.")
     except Exception as e:
