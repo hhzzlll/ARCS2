@@ -1,0 +1,16 @@
+[2025-10-01 18:54:42.767] [info] Updating Model file from 40000 to latest format...
+[2025-10-01 18:54:42.786] [info] Loaded model Pose2Sim_Simple from file D:\Anaconda3\envs\Pose2Sim\Lib\site-packages\Pose2Sim\OpenSim_Setup\Model_Pose2Sim_simple.osim
+[2025-10-01 18:58:14.262] [info] Loaded model Pose2Sim_scaled from file D:\Anaconda3\envs\Pose2Sim\Lib\site-packages\Pose2Sim\demo2\kinematics\demo2_1-223_filt_butterworth.osim
+[2025-10-01 18:58:27.914] [info] Loaded model Pose2Sim_scaled from file D:\Anaconda3\envs\Pose2Sim\Lib\site-packages\Pose2Sim\demo2\kinematics\demo2_1-223_filt_butterworth.osim
+[2025-10-01 18:59:10.866] [info] Storage: read data file = D:\Anaconda3\envs\Pose2Sim\Lib\site-packages\Pose2Sim\demo2\kinematics\demo2_1-223_filt_butterworth.mot (nr=222 nc=41)
+[2025-10-01 19:12:53.932] [info] Updating Model file from 40000 to latest format...
+[2025-10-01 19:12:53.938] [info] Loaded model Pose2Sim_Simple from file D:\Anaconda3\envs\Pose2Sim\Lib\site-packages\Pose2Sim\OpenSim_Setup\Model_Pose2Sim_simple.osim
+[2025-10-01 19:13:08.049] [info] Storage: read data file = D:\Anaconda3\envs\Pose2Sim\Lib\site-packages\Pose2Sim\demo2\kinematics\demo2_1-223_filt_butterworth.mot (nr=222 nc=41)
+[2025-10-01 21:28:32.729] [info] Loaded model Pose2Sim_scaled from file D:\Anaconda3\envs\Pose2Sim\Lib\site-packages\Pose2Sim\demo3\kinematics\demo3_50-223_filt_butterworth.osim
+[2025-10-01 21:28:41.539] [info] Storage: read data file = D:\Anaconda3\envs\Pose2Sim\Lib\site-packages\Pose2Sim\demo3\kinematics\demo3_50-223_filt_butterworth.mot (nr=173 nc=41)
+[2025-10-01 21:41:45.903] [info] Loaded model Pose2Sim_scaled from file D:\Anaconda3\envs\Pose2Sim\Lib\site-packages\Pose2Sim\demo3\kinematics\demo3_50-223_filt_butterworth.osim
+[2025-10-01 21:41:51.812] [info] Storage: read data file = D:\Anaconda3\envs\Pose2Sim\Lib\site-packages\Pose2Sim\demo3\kinematics\demo3_50-223_filt_butterworth.mot (nr=173 nc=41)
+[2025-10-01 21:42:20.098] [info] Loaded model Pose2Sim_scaled from file D:\Anaconda3\envs\Pose2Sim\Lib\site-packages\Pose2Sim\demo3\kinematics\demo3_1-132_filt_butterworth.osim
+[2025-10-01 21:42:39.812] [info] Storage: read data file = D:\Anaconda3\envs\Pose2Sim\Lib\site-packages\Pose2Sim\demo3\kinematics\demo3_1-132_filt_butterworth.mot (nr=131 nc=41)
+[2025-10-01 23:05:22.479] [info] Loaded model Pose2Sim_scaled from file D:\Anaconda3\envs\Pose2Sim\Lib\site-packages\Pose2Sim\demo4\kinematics\demo4_1-223_filt_butterworth.osim
+[2025-10-01 23:05:34.361] [info] Storage: read data file = D:\Anaconda3\envs\Pose2Sim\Lib\site-packages\Pose2Sim\demo4\kinematics\demo4_1-223_filt_butterworth.mot (nr=222 nc=41)
