@@ -5,6 +5,7 @@ import csv
 import os
 from pathlib import Path
 import toml
+from tqdm import tqdm
 
 # hard-coded joint pair
 KEYPOINT_DICT={
@@ -57,7 +58,8 @@ FPS = 60            # recording frame rate
 TIME_LAPSE = 1/FPS
 THRESHOLD = 0.75
 
-video_path = project_root / 'Data' / project_name / 'videos' / 'cam01.mp4'
+# video_path = project_root / 'Data' / project_name / 'videos' / 'cam03.mp4'
+video_path = project_root / 'Data' / project_name / 'cam3.mp4'
 cap = cv.VideoCapture(str(video_path))
 fps = cap.get(cv.CAP_PROP_FPS)
 print(fps)
@@ -66,9 +68,11 @@ if not cap.isOpened():
     print("Cannot open file")
     exit()
 
+total_frames = int(cap.get(cv.CAP_PROP_FRAME_COUNT))
+pbar = tqdm(total=total_frames)
+
 out = []
 while True:
-    print(fcount)
     # Capture frame-by-frame
     ret, frame = cap.read()
     # if frame is read correctly ret is True
@@ -100,30 +104,39 @@ while True:
         #         continue
 
         #only output right_elbow-right_wrist
-        # right_shoulder = list(int(i) for i in kps[KEYPOINT_DICT["right_shoulder"]])
-        # right_elbow = list(int(i) for i in kps[KEYPOINT_DICT["right_elbow"]])
-        # right_wrist = list(int(i) for i in kps[KEYPOINT_DICT["right_wrist"]])
-        # right_shoulder_conf = val[KEYPOINT_DICT["right_shoulder"]]
-        # right_elblw_conf = val[KEYPOINT_DICT["right_elbow"]]
-        # right_wrist_conf = val[KEYPOINT_DICT["right_wrist"]]
-        left_shoulder = list(int(i) for i in kps[KEYPOINT_DICT["left_shoulder"]])
-        left_elbow = list(int(i) for i in kps[KEYPOINT_DICT["left_elbow"]])
-        left_wrist = list(int(i) for i in kps[KEYPOINT_DICT["left_wrist"]])
-        left_shoulder_conf = val[KEYPOINT_DICT["left_shoulder"]]
-        left_elblw_conf = val[KEYPOINT_DICT["left_elbow"]]
-        left_wrist_conf = val[KEYPOINT_DICT["left_wrist"]]
+        right_shoulder = list(int(i) for i in kps[KEYPOINT_DICT["right_shoulder"]])
+        right_elbow = list(int(i) for i in kps[KEYPOINT_DICT["right_elbow"]])
+        right_wrist = list(int(i) for i in kps[KEYPOINT_DICT["right_wrist"]])
+        right_shoulder_conf = val[KEYPOINT_DICT["right_shoulder"]]
+        right_elbow_conf = val[KEYPOINT_DICT["right_elbow"]]
+        right_wrist_conf = val[KEYPOINT_DICT["right_wrist"]]
+
+        right_hip = list(int(i) for i in kps[KEYPOINT_DICT["right_hip"]])
+        right_knee = list(int(i) for i in kps[KEYPOINT_DICT["right_knee"]])
+        right_ankle = list(int(i) for i in kps[KEYPOINT_DICT["right_ankle"]])
+        right_hip_conf = val[KEYPOINT_DICT["right_hip"]]
+        right_knee_conf = val[KEYPOINT_DICT["right_knee"]]
+        right_ankle_conf = val[KEYPOINT_DICT["right_ankle"]]
         
         # add to original frame for visualization
         #frame = cv.circle(frame, right_elbow, 6, (255,255,255) , -1) #(BGR)
         #frame = cv.circle(frame, right_wrist, 6, (255,255,255) , -1)
         #frame = cv.line(frame, right_elbow, right_wrist, (0,255,0), 3)
         
-        out.append([fcount]+left_shoulder+[left_shoulder_conf]+left_elbow+[left_elblw_conf]+left_wrist+[left_wrist_conf])
+        out.append([fcount] + 
+                   right_shoulder + [right_shoulder_conf] + 
+                   right_elbow + [right_elbow_conf] + 
+                   right_wrist + [right_wrist_conf] +
+                   right_hip + [right_hip_conf] +
+                   right_knee + [right_knee_conf] +
+                   right_ankle + [right_ankle_conf])
 
     #cv.imwrite(f"./{fcount}.jpg",frame)
     fcount+=1
+    pbar.update(1)
 
 # When everything done, release the capture
+pbar.close()
 cap.release()
 cv.destroyAllWindows()
 
@@ -131,7 +144,13 @@ cv.destroyAllWindows()
 measurement_dir = project_root / 'Data' / project_name / 'measurement_data'
 os.makedirs(measurement_dir, exist_ok=True)
 with open(str(measurement_dir / 'measurement.csv'), "w", newline="") as f:
-    header = ['index', 'lshoulder u','lshoulder v', 'lshoulder conf','lelbow u', 'lelbow v', 'lelbow conf','lwrist u','lwrist v','lwrist conf']
+    header = ['index', 
+              'rshoulder u','rshoulder v', 'rshoulder conf',
+              'relbow u', 'relbow v', 'relbow conf',
+              'rwrist u','rwrist v','rwrist conf',
+              'rhip u', 'rhip v', 'rhip conf',
+              'rknee u', 'rknee v', 'rknee conf',
+              'rankle u', 'rankle v', 'rankle conf']
     writer = csv.writer(f)
     writer.writerow(header)
     writer.writerows(out)

@@ -61,7 +61,7 @@ class Config:
     file_paths: FilePaths
     camera_parameters: CameraParameters
     transformation_matrix: TransformationMatrix
-    initial_quaternion: InitialQuaternion
+    transform_quaternion: InitialQuaternion
     other_parameters: OtherParameters
 
     @staticmethod
@@ -70,14 +70,14 @@ class Config:
             file_paths=FilePaths(**d["file_paths"]),
             camera_parameters=CameraParameters(**d["camera_parameters"]),
             transformation_matrix=TransformationMatrix(**d["transformation_matrix"]),
-            initial_quaternion=InitialQuaternion(**d["initial_quaternion"]),
+            transform_quaternion=InitialQuaternion(**d["transform_quaternion"]),
             other_parameters=OtherParameters(**d["other_parameters"]),
         )
 
     def validate(self) -> None:
         # 基础字段校验
-        if len(self.initial_quaternion.q_ie) != 4:
-            raise ValueError("initial_quaternion.q_ie 长度必须为 4（[w,x,y,z]）")
+        if len(self.transform_quaternion.q_ie) != 4:
+            raise ValueError("transform_quaternion.q_ie 长度必须为 4（[w,x,y,z]）")
         if self.camera_parameters.fx <= 0 or self.camera_parameters.fy <= 0:
             raise ValueError("camera_parameters.fx/fy 必须为正数")
         # 同步索引 >=1

@@ -1,33 +1,33 @@
 [project]
-project_name = "20251123"
+project_name = "20251204173454"
 
 [estimation.file_paths]
-# imu_farm_fpath = "{project_dir}/Data/{project_name}/imu_data/IMU_farm.csv"
-# imu_uarm_fpath = "{project_dir}/Data/{project_name}/imu_data/IMU_uarm.csv"
-imu_farm_fpath = "D:/论文_课设_报告等/实习/Pose Estimation/Data/20240215/IMU_farm.csv"
-imu_uarm_fpath = "D:/论文_课设_报告等/实习/Pose Estimation/Data/20240215/IMU_uarm.csv"
-# image_fpath = "{project_dir}/measurement_data/measurement.csv"
-# ground_fpath = "{project_dir}/ground_data/ground.csv"
-image_fpath = "D:/论文_课设_报告等/实习/Pose Estimation/Data/20240215/measurement.csv"
-ground_fpath = "D:/论文_课设_报告等/实习/Pose Estimation/Data/20240215/ground.csv"
+imu_farm_fpath = "{project_dir}/Data/{project_name}/imu_data/farm.csv"
+imu_uarm_fpath = "{project_dir}/Data/{project_name}/imu_data/uarm.csv"
+imu_back_fpath = "{project_dir}/Data/{project_name}/imu_data/back.csv"
+imu_lleg_fpath = "{project_dir}/Data/{project_name}/imu_data/lowerleg.csv"
+imu_thigh_fpath = "{project_dir}/Data/{project_name}/imu_data/thigh.csv"
+imu_board_fpath = "{project_dir}/Data/{project_name}/imu_data/checkboard.csv"
+image_fpath = "{project_dir}/measurement_data/measurement.csv"
+ground_fpath = "{project_dir}/ground_data/ground.csv"
 
 [estimation.camera_parameters]
-fx = 1207.8648323972175
-fy = 1205.1690210060772
+fx = 1417.9836376637215
+fy = 1419.173225124115
 
 [estimation.camera_selection]
-camera_key = "int_cam01_img"
-camera_index = 1
+camera_key = "int_cam03_img"
+camera_index = 3
 
 [estimation.transformation_matrix]
-T_cw = [ [ 0.2697234999295026, 0.9628650194026982, 0.011840101199796227,], [ 0.1351180119987616, -0.025670180902348294, -0.9904969281355411,], [ -0.9534109063878398, 0.26876010906211983, -0.13702425828164638,],]
+T_cw = [ [ 0.05350239114108202, 0.9976094318927611, -0.04373688993045727,], [ 0.026108228545747014, -0.045182163779178997, -0.9986375380879862,], [ -0.9982263543627714, 0.05228760345276612, -0.028463168846363074,],]
 
-[estimation.initial_quaternion]
-q_ie = [ 0.6301240420068317, -0.279084251528608, -0.6517816001024764, -0.3163422433731853,]
+[estimation.transform_quaternion]
+q_ie = [ 0.9928862293521181, -0.006074764899654523, 0.00197783310672526, 0.11889542030940028,]
 
 [estimation.other_parameters]
 num_particles = 3000
 hz_imu = 120
-hz_image = 60.0
+hz_image = 30.0
 idx_sync_w = 7737
 idx_sync_kpts = 317

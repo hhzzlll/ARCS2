@@ -153,7 +153,7 @@ def main():
     file_paths = config.file_paths
     camera_params = config.camera_parameters
     transformation_matrix = config.transformation_matrix
-    initial_quaternion = config.initial_quaternion
+    transform_quaternion = config.transform_quaternion
     other_params = config.other_parameters
     
     # 提取具体参数
@@ -167,7 +167,7 @@ def main():
     
     T_cw = np.array(transformation_matrix.T_cw)
     
-    q_ie = np.array(initial_quaternion.q_ie).reshape(-1, 1)
+    q_ie = np.array(transform_quaternion.q_ie).reshape(-1, 1)
     
     numParticles = other_params.num_particles
     hz_imu = other_params.hz_imu

@@ -28,7 +28,7 @@
             ]
         ]
     },
-    "initial_quaternion": {
+    "transform_quaternion": {
         "q_ie": [
             0.6301240420068317,
             -0.2790842515286080,
