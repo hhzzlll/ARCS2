@@ -68,6 +68,13 @@ if not cap.isOpened():
     print("Cannot open file")
     exit()
 
+# Setup VideoWriter
+width = int(cap.get(cv.CAP_PROP_FRAME_WIDTH))
+height = int(cap.get(cv.CAP_PROP_FRAME_HEIGHT))
+output_video_path = video_path.parent / f"{video_path.stem}_pose.mp4"
+fourcc = cv.VideoWriter_fourcc(*'mp4v')
+out_video = cv.VideoWriter(str(output_video_path), fourcc, fps, (width, height))
+
 total_frames = int(cap.get(cv.CAP_PROP_FRAME_COUNT))
 pbar = tqdm(total=total_frames)
 
@@ -80,6 +87,11 @@ while True:
         break
 
     results = model(frame, show=False, verbose=False)
+    
+    # Save detected frame
+    annotated_frame = results[0].plot()
+    out_video.write(annotated_frame)
+
     keypoints= results[0].keypoints.xy      # all keypoints in original pixel coordinate for each detected person
     score = results[0].keypoints.conf
     
@@ -138,6 +150,7 @@ while True:
 # When everything done, release the capture
 pbar.close()
 cap.release()
+out_video.release()
 cv.destroyAllWindows()
 
 # Write measurement CSV into ./Data/{project_name}/measurement_data

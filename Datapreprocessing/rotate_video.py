@@ -3,10 +3,10 @@ import os
 
 # ================= 配置区域 =================
 # 输入视频文件的绝对路径
-input_path = r"D:\ARCS2\Project Code\Data\20251205170451\videos\cam3-2025-12-05 17-04-51.mp4"
+input_path = r"D:\ARCS2\Project Code\Data\20251204173454\cam3.mp4"
 
 # 输出视频文件的绝对路径
-output_path = r"D:\ARCS2\Project Code\Data\20251205170451\videos\cam03.mp4"
+output_path = r"D:\ARCS2\Project Code\Data\20251204173454\cam03.mp4"
 
 # 旋转方向: 'clockwise' (顺时针90度) 或 'counterclockwise' (逆时针90度)
 direction = 'clockwise' 

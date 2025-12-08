@@ -86,15 +86,20 @@ def load_config(config_path: str | None = None) -> Config:
                         p = (Path(__file__).resolve().parent.parent / p).resolve()
                     project_dir = str(p)
                 elif isinstance(raw_name, str) and raw_name.strip():
-                    p = (Path(__file__).resolve().parent.parent / 'Data' / raw_name.strip()).resolve()
+                    p = Path(__file__).resolve().parent.parent
                     project_dir = str(p)
 
-            # 路径插值：{project_dir}
-            if project_dir and isinstance(d.get('file_paths'), dict):
+            # 路径插值：{project_dir} 和 {project_name}
+            if isinstance(d.get('file_paths'), dict):
                 fp = d['file_paths']
+                p_name = str(prj.get('project_name', '')) if isinstance(prj, dict) else ''
                 for k, v in list(fp.items()):
-                    if isinstance(v, str) and '{project_dir}' in v:
-                        fp[k] = v.replace('{project_dir}', project_dir)
+                    if isinstance(v, str):
+                        if project_dir and '{project_dir}' in v:
+                            v = v.replace('{project_dir}', project_dir)
+                        if p_name and '{project_name}' in v:
+                            v = v.replace('{project_name}', p_name)
+                        fp[k] = v
 
             cfg: Config = Config.from_dict(d)
             cfg.validate()
@@ -277,10 +282,16 @@ def main():
     
     # 关键点列表和索引（对应MATLAB代码）
     offset = 2
-    keyPointList = ['Neck','RShoulder','RElbow','RWrist','LShoulder','LElbow','LWrist','midHip',
-                   'RHip','RKnee','RAnkle','LHip','LKnee','LAnkle','LBigToe','LSmallToe','LHeel',
-                   'RBigToe','RSmallToe','RHeel']
-    idxList = list(range(offset, 60, 3))
+    # 根据 ground.csv 的列顺序更新关键点列表
+    keyPointList = ['Hip', 'RHip', 'RKnee', 'RAnkle', 'RBigToe', 'RSmallToe', 'RHeel', 
+                    'LHip', 'LKnee', 'LAnkle', 'LBigToe', 'LSmallToe', 'LHeel', 
+                    'Neck', 'Head', 'Nose', 
+                    'RShoulder', 'RElbow', 'RWrist', 
+                    'LShoulder', 'LElbow', 'LWrist']
+    
+    # 计算索引列表
+    # 每个关键点占3列 (X, Y, Z)
+    idxList = list(range(offset, offset + len(keyPointList) * 3, 3))
     
     # 创建关键点索引字典
     keyPointIndex_XYZ = dict(zip(keyPointList, idxList))
@@ -304,8 +315,8 @@ def main():
             rwrist = motion[i, idx:idx+3].astype(float)
             
             # 计算上臂和前臂向量
-            uarm = (relbow - rshoulder)
-            farm = (rwrist - relbow)
+            uarm = (relbow - rshoulder)#[[2, 0, 1]]  # Z->X, X->Y, Y->Z
+            farm = (rwrist - relbow)#[[2, 0, 1]]
             
             # 检查向量长度是否有效
             uarm_norm = np.linalg.norm(uarm)
@@ -442,7 +453,7 @@ def main():
     angle_imu = np.full(sz_imu, np.nan)
     
     quat_record = []
-    lb = np.array([[-1], [0], [0]])  # 局部身体向量
+    lb = np.array([[1], [0], [0]])  # 局部身体向量
     
     for i in range(sz_imu):
         # 积分结果
@@ -647,6 +658,7 @@ def main():
     print(f"Data 已组装：T={sz_imu}, 图像帧={len(t_image)}")
 
     print("处理完成！")
+    return data
 
 if __name__ == "__main__":
     main()

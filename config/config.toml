@@ -4,12 +4,13 @@ project_name = "20251204173454"
 [estimation.file_paths]
 imu_farm_fpath = "{project_dir}/Data/{project_name}/imu_data/farm.csv"
 imu_uarm_fpath = "{project_dir}/Data/{project_name}/imu_data/uarm.csv"
-imu_back_fpath = "{project_dir}/Data/{project_name}/imu_data/back.csv"
-imu_lleg_fpath = "{project_dir}/Data/{project_name}/imu_data/lowerleg.csv"
-imu_thigh_fpath = "{project_dir}/Data/{project_name}/imu_data/thigh.csv"
-imu_board_fpath = "{project_dir}/Data/{project_name}/imu_data/checkboard.csv"
-image_fpath = "{project_dir}/measurement_data/measurement.csv"
-ground_fpath = "{project_dir}/ground_data/ground.csv"
+#imu_back_fpath = "{project_dir}/Data/{project_name}/imu_data/back.csv"
+#imu_lleg_fpath = "{project_dir}/Data/{project_name}/imu_data/lowerleg.csv"
+#imu_thigh_fpath = "{project_dir}/Data/{project_name}/imu_data/thigh.csv"
+#imu_board_fpath = "{project_dir}/Data/{project_name}/imu_data/checkboard.csv"
+
+image_fpath = "{project_dir}/Data/{project_name}/measurement_data/measurement.csv"
+ground_fpath = "{project_dir}/Data/{project_name}/ground_data/ground.csv"
 
 [estimation.camera_parameters]
 fx = 1417.9836376637215
@@ -29,5 +30,5 @@ q_ie = [ 0.9928862293521181, -0.006074764899654523, 0.00197783310672526, 0.11889
 num_particles = 3000
 hz_imu = 120
 hz_image = 30.0
-idx_sync_w = 7737
-idx_sync_kpts = 317
+idx_sync_w = 67
+idx_sync_kpts = 17
