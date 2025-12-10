@@ -315,8 +315,13 @@ def main():
             rwrist = motion[i, idx:idx+3].astype(float)
             
             # 计算上臂和前臂向量
-            uarm = (relbow - rshoulder)#[[2, 0, 1]]  # Z->X, X->Y, Y->Z
-            farm = (rwrist - relbow)#[[2, 0, 1]]
+            uarm = (relbow - rshoulder)[[2, 0, 1]]  # Z->X, X->Y, Y->Z
+            farm = (rwrist - relbow)[[2, 0, 1]]
+            # uarm_src = relbow - rshoulder
+            # uarm = np.array([uarm_src[2], -uarm_src[0], -uarm_src[1]])  # Z->X, X->-Y, Y->-Z
+
+            # farm_src = rwrist - relbow
+            # farm = np.array([farm_src[2], -farm_src[0], -farm_src[1]])  # Z->X, X->-Y, Y->-Z
             
             # 检查向量长度是否有效
             uarm_norm = np.linalg.norm(uarm)
@@ -408,23 +413,6 @@ def main():
     qEst_farm = estimatePose(q0_farm_flat, numParticles, w_se_farm, kpts_farm, fx, fy, T_cw, 
                             myStateTransitionFcn, myMeasurementLikelihoodFcn, noFilter)
 
-    # 可视化估计结果
-    fig, axes = plt.subplots(2, 2, figsize=(12, 8))
-    for i in range(2):
-        # 前臂IMU
-        axes[i, 0].plot(range(qEst_farm.shape[1]), qEst_farm[i, :])
-        axes[i, 0].set_title(f'qEst_farm - 维度 {i+1}')
-        axes[i, 0].set_xlabel('时间')
-        axes[i, 0].set_ylabel('幅值')
-        
-        # 上臂IMU
-        axes[i, 1].plot(range(qEst_uarm.shape[1]), qEst_uarm[i, :])
-        axes[i, 1].set_title(f'qEst_uarm - 维度 {i+1}')
-        axes[i, 1].set_xlabel('时间')
-        axes[i, 1].set_ylabel('幅值')
-    
-    plt.tight_layout()
-    plt.show()
     
     # 重建身体向量
     print("正在重建身体向量...")
@@ -453,7 +441,7 @@ def main():
     angle_imu = np.full(sz_imu, np.nan)
     
     quat_record = []
-    lb = np.array([[1], [0], [0]])  # 局部身体向量
+    lb = np.array([[-1], [0], [0]])  # 局部身体向量
     
     for i in range(sz_imu):
         # 积分结果
@@ -510,6 +498,7 @@ def main():
         time_axis = (t_imu_farm[idx_imu_start:idx_imu_start+sz_imu] - t_imu_farm[idx_imu_start]) * 1e-6
         plt.plot(time_axis, farm_imu[i, :], 'r-', label='Xsens DOT')
         plt.plot(time_axis, farm_est[i, :], 'b-', label='Est')
+        plt.plot(time_axis, farm_int[i, :], 'm--', label='Int')
         
         # 真值数据
         if sz_ground <= len(t_image):
@@ -520,9 +509,33 @@ def main():
         plt.legend()
         plt.grid(True, alpha=0.3)
     
-        plt.xlabel("时间 [s]")
-        plt.tight_layout()
-        plt.show()
+    plt.xlabel("时间 [s]")
+    plt.tight_layout()
+    plt.show()
+
+    plt.figure(figsize=(12, 10))
+    for i in range(3):
+        plt.subplot(3, 1, i+1)
+        if i == 0:
+            plt.title(f"粒子数: {numParticles} (UArm)")
+        
+        time_axis = (t_imu_farm[idx_imu_start:idx_imu_start+sz_imu] - t_imu_farm[idx_imu_start]) * 1e-6
+        plt.plot(time_axis, uarm_imu[i, :], 'r-', label='Xsens DOT')
+        plt.plot(time_axis, uarm_est[i, :], 'b-', label='Est')
+        plt.plot(time_axis, uarm_int[i, :], 'm--', label='Int')
+        
+        # 真值数据
+        if sz_ground <= len(t_image):
+            time_ground = (t_image[:sz_ground] - t_imu_farm[idx_imu_start]) * 1e-6
+            plt.plot(time_ground, uarm_ground[i, :sz_ground], 'g-', label='Ground Truth')
+        
+        plt.ylabel(chr(ord('x') + i))
+        plt.legend()
+        plt.grid(True, alpha=0.3)
+    
+    plt.xlabel("时间 [s]")
+    plt.tight_layout()
+    plt.show()
     
     # 计算角度误差
     print("正在计算角度误差...")
@@ -553,31 +566,43 @@ def main():
     
     # 绘制调试图
     plt.figure(figsize=(12, 10))
-    
+
+    # Int vs Ground
     plt.subplot(3, 1, 1)
-    valid_indices = ~np.isnan(debug_int)
-    plt.plot(np.where(valid_indices)[0], debug_int[valid_indices], 'b-', linewidth=1.5)
+    mask = ~np.isnan(debug_int) & ~np.isnan(debug_ground)
+    idx = np.where(mask)[0]
+    plt.plot(idx, debug_int[mask], 'b-', linewidth=1.5, label='Int')
+    plt.plot(idx, debug_ground[mask], 'k--', linewidth=1.2, label='Ground')
     plt.xlabel('时间')
     plt.ylabel('debug_int')
     plt.title('Int')
     plt.grid(True)
-    
+    plt.legend()
+
+    # IMU vs Ground
     plt.subplot(3, 1, 2)
-    valid_indices = ~np.isnan(debug_imu)
-    plt.plot(np.where(valid_indices)[0], debug_imu[valid_indices], 'r-', linewidth=1.5)
+    mask = ~np.isnan(debug_imu) & ~np.isnan(debug_ground)
+    idx = np.where(mask)[0]
+    plt.plot(idx, debug_imu[mask], 'r-', linewidth=1.5, label='IMU')
+    plt.plot(idx, debug_ground[mask], 'k--', linewidth=1.2, label='Ground')
     plt.xlabel('时间')
     plt.ylabel('debug_imu')
     plt.title('IMU')
     plt.grid(True)
-    
+    plt.legend()
+
+    # Est vs Ground
     plt.subplot(3, 1, 3)
-    valid_indices = ~np.isnan(debug_est)
-    plt.plot(np.where(valid_indices)[0], debug_est[valid_indices], 'g-', linewidth=1.5)
+    mask = ~np.isnan(debug_est) & ~np.isnan(debug_ground)
+    idx = np.where(mask)[0]
+    plt.plot(idx, debug_est[mask], 'g-', linewidth=1.5, label='Est')
+    plt.plot(idx, debug_ground[mask], 'k--', linewidth=1.2, label='Ground')
     plt.xlabel('时间')
     plt.ylabel('debug_est')
     plt.title('Est')
     plt.grid(True)
-    
+    plt.legend()
+
     plt.tight_layout()
     plt.show()
     

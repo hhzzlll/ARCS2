@@ -164,8 +164,8 @@ def configure_devices_for_onboard_recording(devices: Iterable[object]) -> None:
             print(f"{device.deviceTagName()}: Profile set to General")
         else:
             print(f"{device.deviceTagName()}: Failed to set profile. {device.lastResultText()}")
-        print(f"{device.deviceTagName()}: Set onboard recording data rate to 60 Hz")
-        if device.setOutputRate(60):
+        print(f"{device.deviceTagName()}: Set onboard recording data rate to 120 Hz")
+        if device.setOutputRate(120):
             print("Successfully set onboard recording rate")
         else:
             print(f"Setting onboard recording rate failed! {device.lastResultText()}")
@@ -585,7 +585,7 @@ def main() -> None:
         xdpc.cleanup()
         sys.exit(-1)
 
-    # 3) Configure 60 Hz
+    # 3) Configure 120 Hz
     configure_devices_for_onboard_recording(devices)
 
     # 4) Sync

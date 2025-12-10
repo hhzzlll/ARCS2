@@ -99,7 +99,16 @@ while True:
     if (keypoints is None) or (score is None):
         continue
     
-    for person,conf in zip(keypoints,score):
+    # 只处理置信度最高的一个人
+    if len(keypoints) > 0:
+        # 计算每个人所有关键点的平均置信度
+        mean_scores = score.mean(dim=1)
+        best_person_idx = mean_scores.argmax().item()
+        
+        # 提取最佳匹配的人
+        person = keypoints[best_person_idx]
+        conf = score[best_person_idx]
+        
         kps = person.tolist()
         val  = conf.tolist()
         # keypoints visualization 

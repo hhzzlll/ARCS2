@@ -14,7 +14,7 @@ def myStateTransitionFcn(x_prev, w, dt, n):
     - x_pred: 预测的四元数状态
     """
     # 生成带噪声的角速度
-    wn = w - 0.0025 * np.random.randn(n, 3)
+    wn = w - 0.0035 * np.random.randn(n, 3)
     
     # 向量化的quatexp计算
     half_wn_dt = 0.5 * wn * dt
