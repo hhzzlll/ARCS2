@@ -1,7 +1,7 @@
 import pandas as pd
 
 # 文件路径 (请根据需要修改)
-file_path = r"D:\论文_课设_报告等\实习\Movella_DOT_Data_Exporter-2023.6.0-Windows\data\20251209_200658\farm_D422CD00810E_20251209_200554.csv"
+file_path = r"D:\论文_课设_报告等\实习\Movella_DOT_Data_Exporter-2023.6.0-Windows\data\20251209_200658\uarm_D422CD0080F4_20251209_200554.csv"
 
 # 读取CSV
 df = pd.read_csv(file_path)

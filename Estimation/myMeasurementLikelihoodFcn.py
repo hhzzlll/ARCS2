@@ -49,8 +49,8 @@ def myMeasurementLikelihoodFcn(
 	d = pt1 - pt0
 	du, dv = d[0], d[1]
 
-	# Sample noisy slopes (du+N)/(dv+N)
-	rng = np.random.default_rng()
+	# Sample noisy slopes (du+N)/(dv+N)  43
+	rng = np.random.default_rng(43)
 	Gx = sigma * rng.standard_normal(n_samples)
 	Gy = sigma * rng.standard_normal(n_samples)
 	denom = dv + Gy
@@ -116,9 +116,28 @@ def myMeasurementLikelihoodFcn(
 	bin_centers: np.ndarray = edges[:-1] + bw_half
 	density: np.ndarray = counts.astype(float) / float(n_samples)
 
-	# Cubic spline (MATLAB 'spline' equivalent); allow extrapolation then clamp to >=0
-	likelihood = CubicSpline(bin_centers, density, extrapolate=True)(x_predicted)
+	# # Cubic spline (MATLAB 'spline' equivalent); allow extrapolation then clamp to >=0
+	# likelihood = CubicSpline(bin_centers, density, extrapolate=True)(x_predicted)
+	# Linear interpolation over histogram bin centers; extrapolate with edge densities
+	if np.isscalar(x_predicted):
+		likelihood = np.interp(x_predicted, bin_centers, density, left=density[0], right=density[-1])
+	else:
+		likelihood = np.interp(x_predicted, bin_centers, density, left=density[0], right=density[-1])
 	
+	# 可视化直方图和拟合曲线
+	# import matplotlib.pyplot as plt
+	# plt.figure()
+	# plt.hist(samples, bins=edges, density=True, alpha=0.6, color='g', label='Histogram')
+	# x_plot = np.linspace(s_min, s_max, 1000)
+	# y_plot = CubicSpline(bin_centers, density, extrapolate=True)(x_plot)
+	# plt.plot(x_plot, y_plot, 'r-', label='Cubic Spline')
+	# plt.axvline(x=x_predicted if np.isscalar(x_predicted) else x_predicted[0], color='b', linestyle='--', label='Predicted Slope')
+	# plt.title('Likelihood Distribution')
+	# plt.xlabel('Slope')
+	# plt.ylabel('Density')
+	# plt.legend()
+	# plt.show()
+
 	return np.maximum(0.0, likelihood)
 
 

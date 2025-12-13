@@ -4,6 +4,8 @@ from pathlib import Path
 from typing import Any, Dict
 import numpy as np
 import pandas as pd
+import matplotlib
+matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 plt.rcParams['font.sans-serif'] = ['SimHei']  # 或 ['Microsoft YaHei']
 plt.rcParams['axes.unicode_minus'] = False    # 正常显示负号
@@ -180,8 +182,12 @@ def main():
     idx_sync_w = other_params.idx_sync_w
     idx_sync_kpts = other_params.idx_sync_kpts
     
+    # 手动对齐参数 (正值表示 Ground Truth 滞后，需要向左移；负值表示 Ground Truth 超前，需要向右移)
+    # 这里的 offset 是帧数
+    ground_offset = -45
+    
     # 设置随机种子（模拟 MATLAB 的 rng("default")）
-    np.random.seed(42)
+    np.random.seed(0)
     
     print("配置参数已加载:")
     print(f"IMU频率: {hz_imu} Hz")
@@ -288,7 +294,9 @@ def main():
                     'Neck', 'Head', 'Nose', 
                     'RShoulder', 'RElbow', 'RWrist', 
                     'LShoulder', 'LElbow', 'LWrist']
-    
+    # keyPointList = ['Neck','RShoulder','RElbow','RWrist','LShoulder','LElbow','LWrist','midHip',
+    #                'RHip','RKnee','RAnkle','LHip','LKnee','LAnkle','LBigToe','LSmallToe','LHeel',
+    #                'RBigToe','RSmallToe','RHeel']
     # 计算索引列表
     # 每个关键点占3列 (X, Y, Z)
     idxList = list(range(offset, offset + len(keyPointList) * 3, 3))
@@ -499,11 +507,29 @@ def main():
         plt.plot(time_axis, farm_imu[i, :], 'r-', label='Xsens DOT')
         plt.plot(time_axis, farm_est[i, :], 'b-', label='Est')
         plt.plot(time_axis, farm_int[i, :], 'm--', label='Int')
+
+        # if sz_ground <= len(t_image):
+        #     time_ground = (t_image[:sz_ground] - t_imu_farm[idx_imu_start]) * 1e-6
+        #     plt.plot(time_ground, farm_ground[i, :sz_ground], 'g-', label='Ground Truth')
         
         # 真值数据
-        if sz_ground <= len(t_image):
-            time_ground = (t_image[:sz_ground] - t_imu_farm[idx_imu_start]) * 1e-6
-            plt.plot(time_ground, farm_ground[i, :sz_ground], 'g-', label='Ground Truth')
+        # 应用手动偏移
+        # 如果 ground_offset > 0，表示 ground truth 滞后，我们取 ground[ground_offset:] 对应 t_image[0:]
+        # 如果 ground_offset < 0，表示 ground truth 超前，我们取 ground[0:] 对应 t_image[-ground_offset:]
+        
+        # 计算有效的索引范围
+        g_start = max(0, ground_offset)
+        g_end = min(sz_ground, len(t_image) + ground_offset)
+        
+        t_start = max(0, -ground_offset)
+        t_end = min(len(t_image), sz_ground - ground_offset)
+        
+        # 确保长度一致
+        length = min(g_end - g_start, t_end - t_start)
+        
+        if length > 0:
+            time_ground = (t_image[t_start:t_start+length] - t_imu_farm[idx_imu_start]) * 1e-6
+            plt.plot(time_ground, farm_ground[i, g_start:g_start+length], 'g-', label='Ground Truth')
         
         plt.ylabel(chr(ord('x') + i))
         plt.legend()
@@ -513,6 +539,7 @@ def main():
     plt.tight_layout()
     plt.show()
 
+    # 绘制uarm xyz结果
     plt.figure(figsize=(12, 10))
     for i in range(3):
         plt.subplot(3, 1, i+1)
@@ -524,10 +551,21 @@ def main():
         plt.plot(time_axis, uarm_est[i, :], 'b-', label='Est')
         plt.plot(time_axis, uarm_int[i, :], 'm--', label='Int')
         
+        # if sz_ground <= len(t_image):
+        #     time_ground = (t_image[:sz_ground] - t_imu_farm[idx_imu_start]) * 1e-6
+        #     plt.plot(time_ground, uarm_ground[i, :sz_ground], 'g-', label='Ground Truth')
+        
         # 真值数据
-        if sz_ground <= len(t_image):
-            time_ground = (t_image[:sz_ground] - t_imu_farm[idx_imu_start]) * 1e-6
-            plt.plot(time_ground, uarm_ground[i, :sz_ground], 'g-', label='Ground Truth')
+        # 应用手动偏移
+        g_start = max(0, ground_offset)
+        g_end = min(sz_ground, len(t_image) + ground_offset)
+        t_start = max(0, -ground_offset)
+        t_end = min(len(t_image), sz_ground - ground_offset)
+        length = min(g_end - g_start, t_end - t_start)
+        
+        if length > 0:
+            time_ground = (t_image[t_start:t_start+length] - t_imu_farm[idx_imu_start]) * 1e-6
+            plt.plot(time_ground, uarm_ground[i, g_start:g_start+length], 'g-', label='Ground Truth')
         
         plt.ylabel(chr(ord('x') + i))
         plt.legend()
@@ -547,22 +585,48 @@ def main():
     debug_est = np.full(sz_ground, np.nan)
     debug_ground = np.full(sz_ground, np.nan)
     
-    for i in range(sz_ground):
+    # for i in range(sz_ground):
+    #     t = t_image[i]
+        
+    #     # 找到最近的IMU时间
+    #     i_imu = np.where(t_imu_farm <= t)[0]
+    #     if len(i_imu) > 0:
+    #         idx_imu = i_imu[-1] - idx_imu_start - 1
+    #         if 0 <= idx_imu < sz_imu:
+    #             err_angle_int[i] = angle_int[idx_imu] - angle_ground[i]
+    #             err_angle_imu[i] = angle_imu[idx_imu] - angle_ground[i]
+    #             err_angle_est[i] = angle_est[idx_imu] - angle_ground[i]
+                
+    #             debug_ground[i] = angle_ground[i]
+    #             debug_int[i] = angle_int[idx_imu]
+    #             debug_imu[i] = angle_imu[idx_imu]
+    #             debug_est[i] = angle_est[idx_imu]
+    
+    # 应用手动偏移计算误差
+    # 我们遍历 t_image 的索引 i (对应 estimation 的时间轴)
+    # 对应的 ground truth 索引为 i + ground_offset
+    
+    for i in range(len(t_image)):
         t = t_image[i]
         
-        # 找到最近的IMU时间
-        i_imu = np.where(t_imu_farm <= t)[0]
-        if len(i_imu) > 0:
-            idx_imu = i_imu[-1] - idx_imu_start - 1
-            if 0 <= idx_imu < sz_imu:
-                err_angle_int[i] = angle_int[idx_imu] - angle_ground[i]
-                err_angle_imu[i] = angle_imu[idx_imu] - angle_ground[i]
-                err_angle_est[i] = angle_est[idx_imu] - angle_ground[i]
-                
-                debug_ground[i] = angle_ground[i]
-                debug_int[i] = angle_int[idx_imu]
-                debug_imu[i] = angle_imu[idx_imu]
-                debug_est[i] = angle_est[idx_imu]
+        # 对应的 ground truth 索引
+        i_ground = i + ground_offset
+        
+        if 0 <= i_ground < sz_ground:
+            # 找到最近的IMU时间
+            i_imu = np.where(t_imu_farm <= t)[0]
+            if len(i_imu) > 0:
+                idx_imu = i_imu[-1] - idx_imu_start - 1
+                if 0 <= idx_imu < sz_imu:
+                    # 注意：err_angle 数组长度是 sz_ground，我们用 i_ground 作为索引
+                    err_angle_int[i_ground] = angle_int[idx_imu] - angle_ground[i_ground]
+                    err_angle_imu[i_ground] = angle_imu[idx_imu] - angle_ground[i_ground]
+                    err_angle_est[i_ground] = angle_est[idx_imu] - angle_ground[i_ground]
+                    
+                    debug_ground[i_ground] = angle_ground[i_ground]
+                    debug_int[i_ground] = angle_int[idx_imu]
+                    debug_imu[i_ground] = angle_imu[idx_imu]
+                    debug_est[i_ground] = angle_est[idx_imu]
     
     # 绘制调试图
     plt.figure(figsize=(12, 10))
