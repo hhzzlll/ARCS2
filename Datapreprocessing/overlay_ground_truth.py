@@ -5,11 +5,15 @@ import toml
 from pathlib import Path
 
 # 1. 配置路径
-project_dir = Path(r"D:\ARCS2\Project Code\Data\20251204173454")
-video_path = project_dir / "videos" / "cam2.mp4"
+project_dir = Path(r"D:\ARCS2\Project Code\Data\20251230202711")
+video_path = project_dir / "videos" / "cam01.mp4"
 ground_csv_path = project_dir / "ground_data" / "ground.csv"
 calib_path = project_dir / "calibration" / "Calib_scene.toml"
-output_video_path = project_dir / "videos" /  "cam2_overlay.mp4"
+output_video_path = project_dir / "cam01_overlay.mp4"
+
+# 手动对齐参数 (正值表示 Ground Truth 滞后，需要向左移；负值表示 Ground Truth 超前，需要向右移)
+# 这里的 offset 是帧数
+GROUND_OFFSET = 10#-40
 
 # 2. 读取标定参数
 calib_data = toml.load(calib_path)
@@ -17,8 +21,7 @@ calib_data = toml.load(calib_path)
 # 注意：toml 结构可能不同，这里假设直接在根下或者在 'cameras' 下
 # 根据提供的结构，通常是 calib_data['int_cam01_img'] 等
 
-cam_key_int = 'int_cam02_img'
-# cam_key_ext = 'ext_cam01_img' # Unused
+cam_key_int = 'int_cam01_img'
 
 # 内参
 K = np.array(calib_data[cam_key_int]['matrix'])
@@ -101,8 +104,11 @@ while True:
     # ground.csv 的 Frame# 通常是从 0 或 1 开始的，且可能不是连续的或者有偏移
     # 这里假设视频帧号与 CSV 中的 Frame# 一致
     
-    if current_frame_num in df_raw.index:
-        row = df_raw.loc[current_frame_num]
+    # 应用手动偏移
+    ground_frame_idx = current_frame_num + GROUND_OFFSET
+    
+    if ground_frame_idx in df_raw.index:
+        row = df_raw.loc[ground_frame_idx]
         
         # 提取指定列
         # 注意：row 的索引是整数列号
