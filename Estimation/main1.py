@@ -184,7 +184,7 @@ def main():
     
     # 手动对齐参数 (正值表示 Ground Truth 滞后，需要向左移；负值表示 Ground Truth 超前，需要向右移)
     # 这里的 offset 是帧数
-    ground_offset = -45
+    ground_offset = 10#-45
     
     # 设置随机种子（模拟 MATLAB 的 rng("default")）
     np.random.seed(0)
@@ -371,6 +371,8 @@ def main():
     idx_imu_start = 0  # Python索引从0开始
     q_se_farm = quat_farm[:, idx_imu_start:idx_imu_start+1]
     q_se_uarm = quat_uarm[:, idx_imu_start:idx_imu_start+1]
+    # q_se_farm = np.array([[0.57414488], [-0.24532245], [-0.64474316], [-0.44099978]])
+    # q_se_uarm = np.array([[0.62634805], [-0.27045393], [-0.71114543], [-0.16974974]])
     q_es_farm = qInv(q_se_farm)
     q_es_uarm = qInv(q_se_uarm)
     
@@ -379,8 +381,8 @@ def main():
     q0_uarm = qMul(q_ei, q_se_uarm)
     
     # 偏差校正
-    bias_farm = np.array([0.006147164, -0.029417848, 0.01161752])
-    bias_uarm = np.array([0.037155388, 0.017845646, 0.009383009])
+    bias_farm = np.deg2rad(np.array([0.0012537344306608534, -1.4381607174027777, -0.6083089466930077]))
+    bias_uarm = np.deg2rad(np.array([1.1152587558084857, -1.3612772902557768, 1.2532735040950518]))
     
     # 准备角速度数据
     w_se_farm = np.column_stack([
@@ -407,6 +409,8 @@ def main():
     # 确保q0是1维数组
     q0_uarm_flat = q0_uarm.flatten()
     q0_farm_flat = q0_farm.flatten()
+    # q0_uarm_flat = np.array([0.65248991, 0., -0.75687311, 0.03741681]).reshape(4, 1).flatten()
+    # q0_farm_flat = np.array([0.69477205, 0., -0.68010353, -0.23398927]).reshape(4, 1).flatten()
     # 纯积分（无滤波）
     noFilter = True
     int_uarm = estimatePose(q0_uarm_flat, numParticles, w_se_uarm, kpts_uarm, fx, fy, T_cw, 
@@ -501,7 +505,7 @@ def main():
     for i in range(3):
         plt.subplot(3, 1, i+1)
         if i == 0:
-            plt.title(f"粒子数: {numParticles}")
+            plt.title(f"numParticles: {numParticles}(Farm)")
         
         time_axis = (t_imu_farm[idx_imu_start:idx_imu_start+sz_imu] - t_imu_farm[idx_imu_start]) * 1e-6
         plt.plot(time_axis, farm_imu[i, :], 'r-', label='Xsens DOT')
@@ -535,7 +539,7 @@ def main():
         plt.legend()
         plt.grid(True, alpha=0.3)
     
-    plt.xlabel("时间 [s]")
+    plt.xlabel("Time [s]")
     plt.tight_layout()
     plt.show()
 
@@ -544,7 +548,7 @@ def main():
     for i in range(3):
         plt.subplot(3, 1, i+1)
         if i == 0:
-            plt.title(f"粒子数: {numParticles} (UArm)")
+            plt.title(f"numParticles: {numParticles} (Uarm)")
         
         time_axis = (t_imu_farm[idx_imu_start:idx_imu_start+sz_imu] - t_imu_farm[idx_imu_start]) * 1e-6
         plt.plot(time_axis, uarm_imu[i, :], 'r-', label='Xsens DOT')
@@ -571,7 +575,7 @@ def main():
         plt.legend()
         plt.grid(True, alpha=0.3)
     
-    plt.xlabel("时间 [s]")
+    plt.xlabel("Time [s]")
     plt.tight_layout()
     plt.show()
     
@@ -637,7 +641,7 @@ def main():
     idx = np.where(mask)[0]
     plt.plot(idx, debug_int[mask], 'b-', linewidth=1.5, label='Int')
     plt.plot(idx, debug_ground[mask], 'k--', linewidth=1.2, label='Ground')
-    plt.xlabel('时间')
+    plt.xlabel('Time')
     plt.ylabel('debug_int')
     plt.title('Int')
     plt.grid(True)
@@ -649,7 +653,7 @@ def main():
     idx = np.where(mask)[0]
     plt.plot(idx, debug_imu[mask], 'r-', linewidth=1.5, label='IMU')
     plt.plot(idx, debug_ground[mask], 'k--', linewidth=1.2, label='Ground')
-    plt.xlabel('时间')
+    plt.xlabel('Time')
     plt.ylabel('debug_imu')
     plt.title('IMU')
     plt.grid(True)
@@ -661,7 +665,7 @@ def main():
     idx = np.where(mask)[0]
     plt.plot(idx, debug_est[mask], 'g-', linewidth=1.5, label='Est')
     plt.plot(idx, debug_ground[mask], 'k--', linewidth=1.2, label='Ground')
-    plt.xlabel('时间')
+    plt.xlabel('Time')
     plt.ylabel('debug_est')
     plt.title('Est')
     plt.grid(True)
@@ -678,17 +682,17 @@ def main():
     if np.any(valid_est):
         est_mean = np.mean(np.rad2deg(np.abs(err_angle_est[valid_est])))
         est_std = np.std(np.rad2deg(np.abs(err_angle_est[valid_est])))
-        print(f"[Est] 平均误差: {est_mean:.2f}°, 标准差: {est_std:.2f}°")
+        print(f"[Est] Mean: {est_mean:.2f}°, Std: {est_std:.2f}°")
     
     if np.any(valid_imu):
         imu_mean = np.mean(np.rad2deg(np.abs(err_angle_imu[valid_imu])))
         imu_std = np.std(np.rad2deg(np.abs(err_angle_imu[valid_imu])))
-        print(f"[IMU] 平均误差: {imu_mean:.2f}°, 标准差: {imu_std:.2f}°")
+        print(f"[IMU] Mean: {imu_mean:.2f}°, Std: {imu_std:.2f}°")
     
     if np.any(valid_int):
         int_mean = np.mean(np.rad2deg(np.abs(err_angle_int[valid_int])))
         int_std = np.std(np.rad2deg(np.abs(err_angle_int[valid_int])))
-        print(f"[Int] 平均误差: {int_mean:.2f}°, 标准差: {int_std:.2f}°")
+        print(f"[Int] Mean: {int_mean:.2f}°, Std: {int_std:.2f}°")
     
     # 汇总为 Data 结构
     data = Data(

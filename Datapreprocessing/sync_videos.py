@@ -2,10 +2,15 @@ import cv2
 
 # 配置视频路径列表
 video_paths = [
-    r"D:\ARCS2\Project Code\Data\20251204173454\videos\cam1.mp4",
-    r"D:\ARCS2\Project Code\Data\20251204173454\videos\cam2.mp4",
-    r"D:\ARCS2\Project Code\Data\20251204173454\cam3.mp4"
+    r"D:\ARCS2\Project Code\Data\20251227204822\videos\cam01.mp4",
+    r"D:\ARCS2\Project Code\Data\20251227204822\videos\cam02.mp4",
+    r"D:\ARCS2\Project Code\Data\20251227204822\videos\cam03.mp4"
 ]
+
+# 选定的那一帧将作为新视频的第 x 帧 (从 0 开始计数)
+# 例如: 设置为 0，则选定的那一帧就是新视频的第一帧 (即删除选定帧之前的所有帧)
+#       设置为 10，则选定的那一帧是新视频的第 11 帧 (保留选定帧之前的 10 帧)
+target_frame_index = 450 
 
 def get_start_frame(video_path):
     cap = cv2.VideoCapture(video_path)
@@ -77,7 +82,7 @@ def main():
         
     # 2. 裁剪并保存视频
     for i, path in enumerate(video_paths):
-        start_f = start_frames[i]
+        selected_frame = start_frames[i]
         output_path = path.replace(".mp4", "_synced.mp4")
         
         cap = cv2.VideoCapture(path)
@@ -88,9 +93,18 @@ def main():
         
         out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
         
-        print(f"正在导出: {output_path} (从第 {start_f} 帧开始)...")
+        # 计算实际开始读取的帧
+        # 我们希望 selected_frame 成为新视频的第 target_frame_index 帧
+        # 所以新视频应该从 selected_frame - target_frame_index 开始
+        read_start_frame = selected_frame - target_frame_index
         
-        cap.set(cv2.CAP_PROP_POS_FRAMES, start_f)
+        if read_start_frame < 0:
+            print(f"警告: 视频 {path} 的选定帧 ({selected_frame}) 小于目标帧索引 ({target_frame_index})。将从第 0 帧开始。")
+            read_start_frame = 0
+            
+        print(f"正在导出: {output_path} (选定帧: {selected_frame}, 目标位置: {target_frame_index}, 实际起始帧: {read_start_frame})...")
+        
+        cap.set(cv2.CAP_PROP_POS_FRAMES, read_start_frame)
         
         count = 0
         while True:

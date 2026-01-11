@@ -555,7 +555,9 @@ def calibrate_intrinsics(calib_dir, intrinsics_config_dict):
     '''
 
     try:
-        intrinsics_cam_listdirs_names = sorted(next(os.walk(os.path.join(calib_dir, 'intrinsics')))[1])
+        intrinsics_root = os.path.abspath(os.path.join(calib_dir, 'intrinsics'))
+        cam_subdirs = next(os.walk(intrinsics_root))[1]
+        intrinsics_cam_listdirs_names = sorted([os.path.join(intrinsics_root, d) for d in cam_subdirs])
     except StopIteration:
         logging.exception(f'Error: No {os.path.join(calib_dir, "intrinsics")} folder found.')
         raise Exception(f'Error: No {os.path.join(calib_dir, "intrinsics")} folder found.')
@@ -567,7 +569,7 @@ def calibrate_intrinsics(calib_dir, intrinsics_config_dict):
     intrinsics_square_size = intrinsics_config_dict.get('intrinsics_square_size') / 1000 # convert to meters
     ret, C, S, D, K, R, T = [], [], [], [], [], [], []
 
-    for i,cam in enumerate(intrinsics_cam_listdirs_names):
+    for cam in intrinsics_cam_listdirs_names:
         # Prepare object points
         objp = np.zeros((intrinsics_corners_nb[0]*intrinsics_corners_nb[1],3), np.float32) 
         objp[:,:2] = np.mgrid[0:intrinsics_corners_nb[0],0:intrinsics_corners_nb[1]].T.reshape(-1,2)
@@ -1337,7 +1339,7 @@ def recap_calibrate(ret, calib_path, calib_full_type):
     logging.info(f'Calibration file is stored at {calib_path}.')
 
 
-def calibrate_cams_all(config_dict):
+def calibrate_cams_all(config_dict, calib_dir=None):
     '''
     Either converts a preexisting calibration file, 
     or calculates calibration from scratch (from a board or from points).
@@ -1352,20 +1354,35 @@ def calibrate_cams_all(config_dict):
     '''
 
     # Read config_dict
-    project_dir = config_dict.get('project').get('session_dir')
-    data_dir = os.path.join(project_dir, 'Data')
-    digit_subdirs = [
-        d for d in os.listdir(data_dir)
-        if os.path.isdir(os.path.join(data_dir, d)) and re.fullmatch(r'\d+', d)
-    ]
-    calib_candidates = [
-        os.path.join(data_dir, d, 'calibration')
-        for d in digit_subdirs
-        if os.path.isdir(os.path.join(data_dir, d, 'calibration'))
-    ]
-    if not calib_candidates:
-        raise FileNotFoundError(f'No calibration folder found under {data_dir}/<digits>/calibration')
-    calib_dir = sorted(calib_candidates, key=lambda p: int(os.path.basename(os.path.dirname(p))))[-1]
+    # project_dir = config_dict.get('project').get('session_dir')
+    # data_dir = os.path.join(project_dir, 'Data')
+    # digit_subdirs = [
+    #     d for d in os.listdir(data_dir)
+    #     if os.path.isdir(os.path.join(data_dir, d)) and re.fullmatch(r'\d+', d)
+    # ]
+    # calib_candidates = [
+    #     os.path.join(data_dir, d, 'calibration')
+    #     for d in digit_subdirs
+    #     if os.path.isdir(os.path.join(data_dir, d, 'calibration'))
+    # ]
+    # if not calib_candidates:
+    #     raise FileNotFoundError(f'No calibration folder found under {data_dir}/<digits>/calibration')
+    # calib_dir = sorted(calib_candidates, key=lambda p: int(os.path.basename(os.path.dirname(p))))[-1]
+    if calib_dir is None:
+        project_dir = config_dict.get('project').get('session_dir')
+        data_dir = os.path.join(project_dir, 'Data')
+        digit_subdirs = [
+            d for d in os.listdir(data_dir)
+            if os.path.isdir(os.path.join(data_dir, d)) and re.fullmatch(r'\d+', d)
+        ]
+        calib_candidates = [
+            os.path.join(data_dir, d, 'calibration')
+            for d in digit_subdirs
+            if os.path.isdir(os.path.join(data_dir, d, 'calibration'))
+        ]
+        if not calib_candidates:
+            raise FileNotFoundError(f'No calibration folder found under {data_dir}/<digits>/calibration')
+        calib_dir = sorted(calib_candidates, key=lambda p: int(os.path.basename(os.path.dirname(p))))[-1]
     calib_type = config_dict.get('calibration').get('calibration_type')
 
     if calib_type=='convert':

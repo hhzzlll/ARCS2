@@ -89,8 +89,32 @@ def load_app_config(repo_root: Path):
     return {}
 
 
+def load_config_toml(repo_root: Path):
+    """Load config/config.toml to get project settings."""
+    config_path = repo_root / 'config' / 'config.toml'
+    if config_path.exists():
+        try:
+            return load_toml(config_path)
+        except Exception:
+            return {}
+    return {}
+
 def resolve_project_dir(repo_root: Path, app_cfg):
-    # Prefer explicit project_dir
+    # 1. Try to get project_name from config/config.toml first (as requested)
+    # Note: app_cfg passed here might be app_config.toml, but we want config.toml
+    # So we'll load config.toml inside here or modify the caller.
+    # Let's load config.toml here to be sure.
+    config_toml = load_config_toml(repo_root)
+    
+    proj = config_toml.get('project', {}) if isinstance(config_toml, dict) else {}
+    project_name = proj.get('project_name') if isinstance(proj, dict) else None
+    
+    if isinstance(project_name, str) and project_name.strip():
+        cand = repo_root / 'Data' / project_name
+        if cand.exists():
+            return cand
+            
+    # 2. Fallback to app_config.toml (old behavior) if config.toml didn't work
     proj = app_cfg.get('project', {}) if isinstance(app_cfg, dict) else {}
     project_dir = proj.get('project_dir') if isinstance(proj, dict) else None
     project_name = proj.get('project_name') if isinstance(proj, dict) else None
@@ -99,20 +123,11 @@ def resolve_project_dir(repo_root: Path, app_cfg):
         pd = Path(project_dir)
         return pd if pd.is_absolute() else (repo_root / pd)
 
-    # Fallback to Data/<project_name>
     if isinstance(project_name, str) and project_name.strip():
         cand = repo_root / 'Data' / project_name
         if cand.exists():
             return cand
 
-    # Last resort: latest directory under Data/* that contains calibration/Calib_scene.toml
-    data_root = repo_root / 'Data'
-    if data_root.exists():
-        # Collect candidate calibration files and pick the newest by mtime
-        candidates = list(data_root.glob('*/calibration/Calib_scene.toml'))
-        if candidates:
-            newest = max(candidates, key=lambda p: p.stat().st_mtime)
-            return newest.parent.parent
     return None
 
 
@@ -122,30 +137,31 @@ def find_calib_file(repo_root: Path, provided: str | None = None) -> Path:
         p = Path(provided)
         return p if p.is_absolute() else (Path.cwd() / p)
 
-    # Try via app_config
+    # Try via config
     app_cfg = load_app_config(repo_root)
     proj_dir = resolve_project_dir(repo_root, app_cfg)
     tried = []
     if proj_dir is not None:
-        cand = proj_dir / 'calibration' / 'Calib_scene.toml'
+        # Look in est_cam_calib folder as requested
+        cand = proj_dir / 'est_cam_calib' / 'Calib_scene.toml'
         tried.append(cand)
         if cand.exists():
             return cand
+            
+        # Fallback to calibration folder (old behavior) just in case
+        cand_old = proj_dir / 'calibration' / 'Calib_scene.toml'
+        tried.append(cand_old)
+        if cand_old.exists():
+            return cand_old
+            
         # Try to find any Calib_scene.toml under project_dir
         sub_candidates = list((proj_dir).glob('**/Calib_scene.toml'))
         if sub_candidates:
             return max(sub_candidates, key=lambda p: p.stat().st_mtime)
 
-    # Fallback: search under Data/*/calibration
-    data_root = repo_root / 'Data'
-    if data_root.exists():
-        candidates = list(data_root.glob('*/calibration/Calib_scene.toml'))
-        if candidates:
-            return max(candidates, key=lambda p: p.stat().st_mtime)
-
     # If nothing found, raise a descriptive error
     hint = "; tried: " + ", ".join(str(p) for p in tried) if tried else ""
-    raise FileNotFoundError(f"Could not auto-detect Calib_scene.toml{hint}. Provide --calib explicitly.")
+    raise FileNotFoundError(f"Could not find Calib_scene.toml in {proj_dir} (checked est_cam_calib and calibration){hint}. Please check config.toml project_name or provide --calib explicitly.")
 
 
 def extract_cam_index(camera_key: str) -> int:

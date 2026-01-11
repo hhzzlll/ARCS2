@@ -202,7 +202,7 @@ class Pose2SimPipeline:
         logging.info("---------------------------------------------------------------------\n")
 
     def calibration(self):
-        from Pose2Sim.calibration import calibrate_cams_all
+        from Datapreprocessing.ObtainGround.calibration import calibrate_cams_all
         config_dict = self.config_dicts[0]
         config_dict.get("project").update({"session_dir": self.session_dir})
 
@@ -244,7 +244,7 @@ class Pose2SimPipeline:
         logging.info("---------------------------------------------------------------------\n")
 
         start = time.time()
-        calibrate_cams_all(config_dict)
+        calibrate_cams_all(config_dict, calib_dir)
         elapsed = time.time() - start
         logging.info(f'\nCalibration took {elapsed:.2f} seconds.\n')
 

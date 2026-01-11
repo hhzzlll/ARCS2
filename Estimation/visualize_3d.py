@@ -62,16 +62,17 @@ def visualize_comparison(data):
     ax.set_title('Arm Pose Comparison: Est vs Int vs IMU vs Ground')
     
     # 初始化线条
-    # 格式: (uarm_vec, farm_vec, color, label, style)
+    ground_offset = 0#-45
+    # 格式: (uarm_vec, farm_vec, color, label, style, offset)
     methods = [
-        (uarm_est, farm_est, 'r', 'Est', '-'),
-        (uarm_int, farm_int, 'b', 'Int', '--'),
-        (uarm_imu, farm_imu, 'g', 'IMU', '-.'),
-        (uarm_ground, farm_ground, 'k', 'Ground', ':')
+        (uarm_est, farm_est, 'r', 'Est', '-', 0),
+        (uarm_int, farm_int, 'b', 'Int', '--', 0),
+        (uarm_imu, farm_imu, 'g', 'IMU', '-.', 0),
+        (uarm_ground, farm_ground, 'k', 'Ground', ':', ground_offset)
     ]
     
     lines = []
-    for _, _, color, label, style in methods:
+    for _, _, color, label, style, _ in methods:
         line, = ax.plot([], [], [], color=color, label=label, linestyle=style, marker='o', lw=2)
         lines.append(line)
         
@@ -82,7 +83,7 @@ def visualize_comparison(data):
 
     def get_coords(uarm_vec, farm_vec, frame_idx):
         # 检查索引边界
-        if frame_idx >= uarm_vec.shape[1]:
+        if frame_idx < 0 or frame_idx >= uarm_vec.shape[1]:
             return None, None, None
             
         # 检查 NaN (针对 Ground Truth)
@@ -104,8 +105,8 @@ def visualize_comparison(data):
         frame = int(slider.val)
         text.set_text(f"Frame: {frame}/{num_frames}")
         
-        for i, (u_vec, f_vec, _, _, _) in enumerate(methods):
-            xs, ys, zs = get_coords(u_vec, f_vec, frame)
+        for i, (u_vec, f_vec, _, _, _, offset) in enumerate(methods):
+            xs, ys, zs = get_coords(u_vec, f_vec, frame + offset)
             if xs is not None:
                 lines[i].set_data(xs, ys)
                 lines[i].set_3d_properties(zs)
