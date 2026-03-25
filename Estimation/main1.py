@@ -7,17 +7,15 @@ import pandas as pd
 import matplotlib
 matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
-plt.rcParams['font.sans-serif'] = ['SimHei']  # 或 ['Microsoft YaHei']
-plt.rcParams['axes.unicode_minus'] = False    # 正常显示负号
+plt.rcParams['font.sans-serif'] = ['SimHei']
+plt.rcParams['axes.unicode_minus'] = False
 import sys
 from numpy.typing import NDArray
 
-# 添加工具路径
 current_dir = os.path.dirname(os.path.abspath(__file__))
 utils_dir = os.path.join(current_dir, 'utilspy')
 sys.path.append(utils_dir)
 
-# 导入工具函数
 from utilspy.angle_between_vectors import angle_between_vectors
 from utilspy.qInv import qInv
 from utilspy.qMul import qMul
@@ -31,25 +29,14 @@ from types_def import (
 )
 
 def _load_toml(path: Path) -> Dict[str, Any]:
-    try:
-        import toml  # type: ignore
-        return toml.load(str(path))
-    except Exception:
-        # Python 3.11+ fallback using tomllib
-        try:
-            import tomllib  # type: ignore
-            with open(path, 'rb') as f:
-                return tomllib.load(f)
-        except Exception as e:
-            raise e
+    import toml 
+    return toml.load(str(path))
 
 
 def _guess_app_config_path() -> Path | None:
-    # 优先 Estimation/../config/app_config.toml
     base = Path(__file__).resolve().parent.parent
     candidates = [
         base / 'config' / 'config.toml',
-        # base / 'config' / 'config.toml',
     ]
     for p in candidates:
         if p.exists():
@@ -58,25 +45,13 @@ def _guess_app_config_path() -> Path | None:
 
 
 def load_config(config_path: str | None = None) -> Config:
-    """从配置文件加载参数（优先 TOML，其次 JSON）并转换为 Config。
-
-    支持的 TOML 结构（示例）：
-    [project]
-    project_name = "20251028"  # 或 project_dir = "d:/.../Data/20251028"
-
-    [estimation.file_paths]
-    imu_farm_fpath = "..."
-    ...
-    """
-    # 1) 优先尝试 config.toml
     app_cfg_path = _guess_app_config_path()
     if app_cfg_path and app_cfg_path.suffix.lower() in ('.toml',):
         data = _load_toml(app_cfg_path)
         est = data.get('estimation') if isinstance(data, dict) else None
         prj = data.get('project') if isinstance(data, dict) else None
         if isinstance(est, dict):
-            d = est  # 期望包含 file_paths 等五大块
-            # 如果存在 project_dir 占位符，则展开
+            d = est  
             project_dir: str | None = None
             if isinstance(prj, dict):
                 raw_dir = prj.get('project_dir')
@@ -91,7 +66,6 @@ def load_config(config_path: str | None = None) -> Config:
                     p = Path(__file__).resolve().parent.parent
                     project_dir = str(p)
 
-            # 路径插值：{project_dir} 和 {project_name}
             if isinstance(d.get('file_paths'), dict):
                 fp = d['file_paths']
                 p_name = str(prj.get('project_name', '')) if isinstance(prj, dict) else ''
@@ -107,35 +81,22 @@ def load_config(config_path: str | None = None) -> Config:
             cfg.validate()
             return cfg
 
-    # # 2) 其次尝试 JSON（保持兼容）
-    # json_path = Path(config_path) if config_path else Path(__file__).parent / 'config.json'
-    # if json_path.exists():
-    #     with open(json_path, 'r', encoding='utf-8') as f:
-    #         cfg_dict = json.load(f)
-    #     cfg = Config.from_dict(cfg_dict)
-    #     cfg.validate()
-    #     return cfg
-
-    raise FileNotFoundError('未找到配置：请在 config/app_config.toml 中提供 estimation.* 配置，或保留 Estimation/config.json')
+    raise FileNotFoundError('Configuration not found: Please provide estimation.* configuration in config/config.toml')
 
 def state_transition_adapter(state: NDArray[np.float64],
                              angular_velocity: NDArray[np.float64],
                              dt: float,
                              _unused: object) -> NDArray[np.float64]:
-    """适配器函数，将estimatePose期望的参数格式转换为myStateTransitionFcn的格式"""
-    # 简单的四元数积分，基于角速度
-    # 这里实现一个基本的四元数积分方法
+    
     w = angular_velocity
     w_norm = np.linalg.norm(w)
     
     if w_norm < 1e-6:
-        return state  # 如果角速度很小，状态不变
+        return state  
     
-    # 四元数积分公式
     w_unit = w / w_norm
     angle = w_norm * dt
     
-    # 增量四元数
     dq = np.array([
         np.cos(angle/2),
         w_unit[0] * np.sin(angle/2),
@@ -143,27 +104,22 @@ def state_transition_adapter(state: NDArray[np.float64],
         w_unit[2] * np.sin(angle/2)
     ])
     
-    # 四元数乘法更新状态
     from utilspy.qMul import qMul
     new_state = qMul(state.reshape(-1, 1), dq.reshape(-1, 1)).flatten()
     
-    # 归一化四元数
     new_state = new_state / np.linalg.norm(new_state)
     
     return new_state
 
 def main():
-    # 加载配置
     config = load_config()
     
-    # 从配置文件中获取参数
     file_paths = config.file_paths
     camera_params = config.camera_parameters
     transformation_matrix = config.transformation_matrix
     transform_quaternion = config.transform_quaternion
     other_params = config.other_parameters
     
-    # 提取具体参数
     imu_farm_fpath = file_paths.imu_farm_fpath
     imu_uarm_fpath = file_paths.imu_uarm_fpath
     image_fpath = file_paths.image_fpath
@@ -182,180 +138,105 @@ def main():
     idx_sync_w = other_params.idx_sync_w
     idx_sync_kpts = other_params.idx_sync_kpts
     
-    # 手动对齐参数 (正值表示 Ground Truth 滞后，需要向左移；负值表示 Ground Truth 超前，需要向右移)
-    # 这里的 offset 是帧数
-    ground_offset = 10#-45
+    # Manual alignment parameter 
+    # positive value means Ground Truth lags and needs to be shifted left; 
+    # negative value means Ground Truth leads and needs to be shifted right)
+    ground_offset = -10 # 23
     
-    # 设置随机种子（模拟 MATLAB 的 rng("default")）
     np.random.seed(0)
     
-    print("配置参数已加载:")
-    print(f"IMU频率: {hz_imu} Hz")
-    print(f"图像频率: {hz_image} Hz")
-    print(f"粒子数量: {numParticles}")
-    print(f"同步索引 - IMU: {idx_sync_w}, 关键点: {idx_sync_kpts}")
+    print("Configuration parameters loaded:")
+    print(f"IMU Frequency: {hz_imu} Hz")
+    print(f"Image Frequency: {hz_image} Hz")
+    print(f"Number of Particles: {numParticles}")
+    print(f"Sync Indices - IMU: {idx_sync_w}, Keypoints: {idx_sync_kpts}")
     
-    # 加载数据
-    print("正在加载数据...")
-    try:
-        # 使用 pandas 读取 CSV，确保数值列被正确解析
-        imu_farm_df = pd.read_csv(imu_farm_fpath)
-        imu_uarm_df = pd.read_csv(imu_uarm_fpath)
-        image_df = pd.read_csv(image_fpath)
-        
-        # 去掉包含非数值数据的列（如空格字符）
-        # 只保留数值列
-        imu_farm_df = imu_farm_df.select_dtypes(include=[np.number])
-        imu_uarm_df = imu_uarm_df.select_dtypes(include=[np.number])
+    print("Loading IMU and image data...")
+    
+    imu_farm_df = pd.read_csv(imu_farm_fpath)
+    imu_uarm_df = pd.read_csv(imu_uarm_fpath)
+    image_df = pd.read_csv(image_fpath)
+    
+    imu_farm_df = imu_farm_df.select_dtypes(include=[np.number])
+    imu_uarm_df = imu_uarm_df.select_dtypes(include=[np.number])
 
-        # 使用列名而不是位置索引提取角速度列
-        gyr_cols = ['Gyr_X', 'Gyr_Y', 'Gyr_Z']
-        missing_farm = [c for c in gyr_cols if c not in imu_farm_df.columns]
-        missing_uarm = [c for c in gyr_cols if c not in imu_uarm_df.columns]
-        if missing_farm:
-            raise ValueError(f"前臂 IMU 数据缺少角速度列: {missing_farm}")
-        if missing_uarm:
-            raise ValueError(f"上臂 IMU 数据缺少角速度列: {missing_uarm}")
-        gyr_farm = imu_farm_df[gyr_cols].to_numpy(dtype=float)
-        gyr_uarm = imu_uarm_df[gyr_cols].to_numpy(dtype=float)
-        image_df = image_df.select_dtypes(include=[np.number])
-        
-        # 转换为 numpy 数组，确保数值类型
-        imu_farm = imu_farm_df.values.astype(float)
-        imu_uarm = imu_uarm_df.values.astype(float)
-        image_data = image_df.values.astype(float)
-        
-    except Exception as e:
-        print(f"读取 IMU/图像数据时出错: {e}")
-        # 如果类型转换失败，尝试手动处理
-        imu_farm_df = pd.read_csv(imu_farm_fpath).select_dtypes(include=[np.number])
-        imu_uarm_df = pd.read_csv(imu_uarm_fpath).select_dtypes(include=[np.number])
-        image_df = pd.read_csv(image_fpath).select_dtypes(include=[np.number])
-        imu_farm = imu_farm_df.values.astype(float)
-        imu_uarm = imu_uarm_df.values.astype(float)
-        image_data = image_df.values.astype(float)
+    gyr_cols = ['Gyr_X', 'Gyr_Y', 'Gyr_Z']
+
+    gyr_farm = imu_farm_df[gyr_cols].to_numpy(dtype=float)
+    gyr_uarm = imu_uarm_df[gyr_cols].to_numpy(dtype=float)
+    image_df = image_df.select_dtypes(include=[np.number])
     
-    # 提取关键点数据
+    imu_farm = imu_farm_df.values.astype(float)
+    imu_uarm = imu_uarm_df.values.astype(float)
+    image_data = image_df.values.astype(float)
+    
     kpts_shoulder_elbow = image_data[:, 1:7]  # [u,v,conf] for shoulder-elbow
     kpts_elbow_wrist = image_data[:, 4:10]    # [u,v,conf] for elbow-wrist
     
-    # 提取时间和四元数数据，确保类型正确
     t_imu_farm = imu_farm[:, 1].astype(float)
-    quat_farm = imu_farm[:, 2:6].T.astype(float)  # 转置以匹配MATLAB格式
+    quat_farm = imu_farm[:, 2:6].T.astype(float)  
     
     t_imu_uarm = imu_uarm[:, 1].astype(float)
-    quat_uarm = imu_uarm[:, 2:6].T.astype(float)  # 转置以匹配MATLAB格式    # 加载真值数据
-    try:
-        print("正在加载真值数据...")
-        motion_df = pd.read_csv(ground_fpath)
-        print(f"真值数据形状: {motion_df.shape}")
-        print(f"真值数据前几列: {motion_df.columns[:10].tolist()}")
-        
-        # 尝试将所有列转换为数值类型，跳过非数值列
-        motion = motion_df.iloc[2:, :].values  # 跳过前两行
-        
-        # 确保数据是数值类型
-        if motion.dtype == 'object':
-            # 如果包含非数值数据，尝试转换
-            motion_numeric = []
-            for i in range(motion.shape[0]):
-                row = []
-                for j in range(motion.shape[1]):
-                    try:
-                        val = float(motion[i, j]) if motion[i, j] != '' else 0.0
-                        row.append(val)
-                    except (ValueError, TypeError):
-                        row.append(0.0)  # 无法转换的值设为0
-                motion_numeric.append(row)
-            motion = np.array(motion_numeric, dtype=float)
-        else:
-            motion = motion.astype(float)
-            
-        print(f"处理后的真值数据形状: {motion.shape}")
-        
-    except Exception as e:
-        print(f"加载真值数据时出错: {e}")
-        print("尝试使用替代方法...")
-        # 使用numpy直接读取，跳过可能的头部行
-        try:
-            motion = np.loadtxt(ground_fpath, delimiter=',', skiprows=3)
-        except:
-            # 最后的备选方案
-            motion_df = pd.read_csv(ground_fpath, header=None)
-            motion = motion_df.iloc[2:, :].values
-            motion = np.array([[float(x) if str(x).replace('.','').replace('-','').isdigit() else 0.0 
-                              for x in row] for row in motion], dtype=float)
+    quat_uarm = imu_uarm[:, 2:6].T.astype(float) 
     
-    # 关键点列表和索引（对应MATLAB代码）
+    print("Loading ground truth data...")
+    motion_df = pd.read_csv(ground_fpath)
+    print(f"Ground truth data shape: {motion_df.shape}")
+        
+    motion = motion_df.iloc[1:, :].values 
+        
+    
+    motion_numeric = []
+    for i in range(motion.shape[0]):
+        row = []
+        for j in range(motion.shape[1]):
+            val = float(motion[i, j]) if motion[i, j] != '' else 0.0
+            row.append(val)
+        motion_numeric.append(row)
+    motion = np.array(motion_numeric, dtype=float)
+        
+    print(f"Processed ground truth data shape: {motion.shape}")
+
+    
     offset = 2
-    # 根据 ground.csv 的列顺序更新关键点列表
     keyPointList = ['Hip', 'RHip', 'RKnee', 'RAnkle', 'RBigToe', 'RSmallToe', 'RHeel', 
                     'LHip', 'LKnee', 'LAnkle', 'LBigToe', 'LSmallToe', 'LHeel', 
                     'Neck', 'Head', 'Nose', 
                     'RShoulder', 'RElbow', 'RWrist', 
                     'LShoulder', 'LElbow', 'LWrist']
-    # keyPointList = ['Neck','RShoulder','RElbow','RWrist','LShoulder','LElbow','LWrist','midHip',
-    #                'RHip','RKnee','RAnkle','LHip','LKnee','LAnkle','LBigToe','LSmallToe','LHeel',
-    #                'RBigToe','RSmallToe','RHeel']
-    # 计算索引列表
-    # 每个关键点占3列 (X, Y, Z)
+    
+    # each keypoint has 3 values (X,Y,Z)
     idxList = list(range(offset, offset + len(keyPointList) * 3, 3))
     
-    # 创建关键点索引字典
     keyPointIndex_XYZ = dict(zip(keyPointList, idxList))
     
-    # 计算真值数据
     sz_ground = len(motion)
     uarm_ground = np.full((3, sz_ground), np.nan)
     farm_ground = np.full((3, sz_ground), np.nan)
     angle_ground = np.full(sz_ground, np.nan)
-    print("正在计算真值数据...")
+    print("Calculating ground truth data...")
     for i in range(sz_ground):
-        try:
-            # 获取关键点坐标
-            idx = keyPointIndex_XYZ['RShoulder']
-            rshoulder = motion[i, idx:idx+3].astype(float)
-            
-            idx = keyPointIndex_XYZ['RElbow']
-            relbow = motion[i, idx:idx+3].astype(float)
-            
-            idx = keyPointIndex_XYZ['RWrist']
-            rwrist = motion[i, idx:idx+3].astype(float)
-            
-            # 计算上臂和前臂向量
-            uarm = (relbow - rshoulder)[[2, 0, 1]]  # Z->X, X->Y, Y->Z
-            farm = (rwrist - relbow)[[2, 0, 1]]
-            # uarm_src = relbow - rshoulder
-            # uarm = np.array([uarm_src[2], -uarm_src[0], -uarm_src[1]])  # Z->X, X->-Y, Y->-Z
+        idx = keyPointIndex_XYZ['RShoulder']
+        rshoulder = motion[i, idx:idx+3].astype(float)
+        
+        idx = keyPointIndex_XYZ['RElbow']
+        relbow = motion[i, idx:idx+3].astype(float)
+        
+        idx = keyPointIndex_XYZ['RWrist']
+        rwrist = motion[i, idx:idx+3].astype(float)
+        
+        uarm = (relbow - rshoulder)[[2, 0, 1]]  # Z->X, X->Y, Y->Z
+        farm = (rwrist - relbow)[[2, 0, 1]]
 
-            # farm_src = rwrist - relbow
-            # farm = np.array([farm_src[2], -farm_src[0], -farm_src[1]])  # Z->X, X->-Y, Y->-Z
-            
-            # 检查向量长度是否有效
-            uarm_norm = np.linalg.norm(uarm)
-            farm_norm = np.linalg.norm(farm)
-            
-            if uarm_norm > 1e-6 and farm_norm > 1e-6:
-                uarm_ground[:, i] = uarm / uarm_norm
-                farm_ground[:, i] = farm / farm_norm
-                angle_ground[i] = angle_between_vectors(-uarm, farm)
-            else:
-                # 如果向量长度太小，设为NaN
-                uarm_ground[:, i] = np.nan
-                farm_ground[:, i] = np.nan
-                angle_ground[i] = np.nan
-                
-        except Exception as e:
-            print(f"处理第{i}行数据时出错: {e}")
-            # 设置为NaN以避免程序崩溃
-            uarm_ground[:, i] = np.nan
-            farm_ground[:, i] = np.nan
-            angle_ground[i] = np.nan
-            continue
+        uarm_norm = np.linalg.norm(uarm)
+        farm_norm = np.linalg.norm(farm)
+        
+        uarm_ground[:, i] = uarm / uarm_norm
+        farm_ground[:, i] = farm / farm_norm
+        angle_ground[i] = angle_between_vectors(-uarm, farm)
     
-    # 同步数据
-    print("正在同步数据...")
-    t_sync_imu = t_imu_farm[idx_sync_w - 1]  # Python索引从0开始
+    print("Syncing data...")
+    t_sync_imu = t_imu_farm[idx_sync_w - 1] 
     f_imu = 1 / hz_imu
     dt_imu = f_imu / (1 / 1000000)  # [1 tick = 1s/1M = 1us]
     
@@ -367,12 +248,9 @@ def main():
     temp_array = np.arange(t0, t0 + n_image * dt_image, dt_image)
     t_image = temp_array[:n_image]
     
-    # 准备数据
-    idx_imu_start = 0  # Python索引从0开始
+    idx_imu_start = 0  
     q_se_farm = quat_farm[:, idx_imu_start:idx_imu_start+1]
     q_se_uarm = quat_uarm[:, idx_imu_start:idx_imu_start+1]
-    # q_se_farm = np.array([[0.57414488], [-0.24532245], [-0.64474316], [-0.44099978]])
-    # q_se_uarm = np.array([[0.62634805], [-0.27045393], [-0.71114543], [-0.16974974]])
     q_es_farm = qInv(q_se_farm)
     q_es_uarm = qInv(q_se_uarm)
     
@@ -380,14 +258,12 @@ def main():
     q0_farm = qMul(q_ei, q_se_farm)
     q0_uarm = qMul(q_ei, q_se_uarm)
     
-    # 偏差校正
-    bias_farm = np.deg2rad(np.array([0.0012537344306608534, -1.4381607174027777, -0.6083089466930077]))
-    bias_uarm = np.deg2rad(np.array([1.1152587558084857, -1.3612772902557768, 1.2532735040950518]))
+    bias_farm = np.deg2rad(np.array([0.3022778628443215, -1.5259842610133334, -0.26910324191867685]))
+    bias_uarm = np.deg2rad(np.array([1.2221464238998792, -1.2663199782371521, 1.4864542516072592]))
     
-    # 准备角速度数据
     w_se_farm = np.column_stack([
         t_imu_farm[idx_imu_start:] * 1e-6,
-        np.deg2rad(gyr_farm[idx_imu_start:, :])  # 角速度列 (Gyr_X,Gyr_Y,Gyr_Z)
+        np.deg2rad(gyr_farm[idx_imu_start:, :])  
     ])
     w_se_farm[:, 1] -= bias_farm[0]
     w_se_farm[:, 2] -= bias_farm[1]
@@ -395,39 +271,34 @@ def main():
     
     w_se_uarm = np.column_stack([
         t_imu_farm[idx_imu_start:] * 1e-6,
-        np.deg2rad(gyr_uarm[idx_imu_start:, :])  # 角速度列 (Gyr_X,Gyr_Y,Gyr_Z)
+        np.deg2rad(gyr_uarm[idx_imu_start:, :]) 
     ])
     w_se_uarm[:, 1] -= bias_uarm[0]
     w_se_uarm[:, 2] -= bias_uarm[1]
     w_se_uarm[:, 3] -= bias_uarm[2]
     
-    # 准备关键点数据
     kpts_uarm = np.column_stack([t_image * 1e-6, kpts_shoulder_elbow])
-    kpts_farm = np.column_stack([t_image * 1e-6, kpts_elbow_wrist])    # 姿态估计
-    print("正在进行姿态估计...")
+    kpts_farm = np.column_stack([t_image * 1e-6, kpts_elbow_wrist])    
     
-    # 确保q0是1维数组
     q0_uarm_flat = q0_uarm.flatten()
     q0_farm_flat = q0_farm.flatten()
-    # q0_uarm_flat = np.array([0.65248991, 0., -0.75687311, 0.03741681]).reshape(4, 1).flatten()
-    # q0_farm_flat = np.array([0.69477205, 0., -0.68010353, -0.23398927]).reshape(4, 1).flatten()
-    # 纯积分（无滤波）
+    # q0_uarm_flat = np.array([ 0.68962683,  0.,  -0.71609053, 0.10783867]).reshape(4, 1).flatten()
+    # q0_farm_flat = np.array([ 0.60959801, 0., -0.78576101, -0.10473727]).reshape(4, 1).flatten()
+
+    # pure integration without filtering
     noFilter = True
     int_uarm = estimatePose(q0_uarm_flat, numParticles, w_se_uarm, kpts_uarm, fx, fy, T_cw, 
                            myStateTransitionFcn, myMeasurementLikelihoodFcn, noFilter)
     int_farm = estimatePose(q0_farm_flat, numParticles, w_se_farm, kpts_farm, fx, fy, T_cw, 
                            myStateTransitionFcn, myMeasurementLikelihoodFcn, noFilter)
 
-    # 使用滤波器
+    # use particle filter
     noFilter = False
     qEst_uarm = estimatePose(q0_uarm_flat, numParticles, w_se_uarm, kpts_uarm, fx, fy, T_cw, 
                             myStateTransitionFcn, myMeasurementLikelihoodFcn, noFilter)
     qEst_farm = estimatePose(q0_farm_flat, numParticles, w_se_farm, kpts_farm, fx, fy, T_cw, 
                             myStateTransitionFcn, myMeasurementLikelihoodFcn, noFilter)
 
-    
-    # 重建身体向量
-    print("正在重建身体向量...")
     sz_imu = qEst_uarm.shape[1]
     
     farm_int = np.full((3, sz_imu), np.nan)
@@ -437,7 +308,6 @@ def main():
     farm_imu = np.full((3, sz_imu), np.nan)
     uarm_imu = np.full((3, sz_imu), np.nan)
 
-    # 旋转矩阵序列与 IMU 四元数轨迹缓存
     R_uarm_int = np.full((sz_imu, 3, 3), np.nan)
     R_farm_int = np.full((sz_imu, 3, 3), np.nan)
     R_uarm_est = np.full((sz_imu, 3, 3), np.nan)
@@ -453,10 +323,10 @@ def main():
     angle_imu = np.full(sz_imu, np.nan)
     
     quat_record = []
-    lb = np.array([[-1], [0], [0]])  # 局部身体向量
+    lb = np.array([[-1], [0], [0]]) 
     
     for i in range(sz_imu):
-        # 积分结果
+        # pure integration result
         T_se = transFromQuat(int_uarm[:, i:i+1])
         T_es = T_se.T
         R_uarm_int[i, :, :] = T_se
@@ -469,7 +339,7 @@ def main():
         
         angle_int[i] = angle_between_vectors(-uarm_int[:, i], farm_int[:, i])
         
-        # 估计结果
+        # our method result
         T_se = transFromQuat(qEst_uarm[:, i:i+1])
         T_es = T_se.T
         R_uarm_est[i, :, :] = T_se
@@ -482,7 +352,7 @@ def main():
         
         angle_est[i] = angle_between_vectors(-uarm_est[:, i], farm_est[:, i])
         
-        # IMU直接结果
+        # pure IMU result
         qimu_uarm_i = qMul(q_ei, quat_uarm[:, idx_imu_start+i:idx_imu_start+i+1])
         T_se = transFromQuat(qimu_uarm_i)
         T_es = T_se.T
@@ -499,8 +369,8 @@ def main():
         farm_imu[:, i] = (T_es @ lb).flatten()
         
         angle_imu[i] = angle_between_vectors(-uarm_imu[:, i], farm_imu[:, i])
-    
-    # 绘制前臂xyz结果
+
+    # plot forearm xyz
     plt.figure(figsize=(12, 10))
     for i in range(3):
         plt.subplot(3, 1, i+1)
@@ -509,32 +379,22 @@ def main():
         
         time_axis = (t_imu_farm[idx_imu_start:idx_imu_start+sz_imu] - t_imu_farm[idx_imu_start]) * 1e-6
         plt.plot(time_axis, farm_imu[i, :], 'r-', label='Xsens DOT')
-        plt.plot(time_axis, farm_est[i, :], 'b-', label='Est')
+        # plt.plot(time_axis, farm_est[i, :], 'b-', label='Est')
         plt.plot(time_axis, farm_int[i, :], 'm--', label='Int')
 
-        # if sz_ground <= len(t_image):
-        #     time_ground = (t_image[:sz_ground] - t_imu_farm[idx_imu_start]) * 1e-6
-        #     plt.plot(time_ground, farm_ground[i, :sz_ground], 'g-', label='Ground Truth')
-        
-        # 真值数据
-        # 应用手动偏移
-        # 如果 ground_offset > 0，表示 ground truth 滞后，我们取 ground[ground_offset:] 对应 t_image[0:]
-        # 如果 ground_offset < 0，表示 ground truth 超前，我们取 ground[0:] 对应 t_image[-ground_offset:]
-        
-        # 计算有效的索引范围
         g_start = max(0, ground_offset)
         g_end = min(sz_ground, len(t_image) + ground_offset)
         
         t_start = max(0, -ground_offset)
         t_end = min(len(t_image), sz_ground - ground_offset)
         
-        # 确保长度一致
+        # Ensure length consistency
         length = min(g_end - g_start, t_end - t_start)
         
         if length > 0:
             time_ground = (t_image[t_start:t_start+length] - t_imu_farm[idx_imu_start]) * 1e-6
-            plt.plot(time_ground, farm_ground[i, g_start:g_start+length], 'g-', label='Ground Truth')
-        
+            # plt.plot(time_ground, farm_ground[i, g_start:g_start+length], 'g-', label='Ground Truth')
+
         plt.ylabel(chr(ord('x') + i))
         plt.legend()
         plt.grid(True, alpha=0.3)
@@ -543,7 +403,7 @@ def main():
     plt.tight_layout()
     plt.show()
 
-    # 绘制uarm xyz结果
+    # plot upper arm xyz
     plt.figure(figsize=(12, 10))
     for i in range(3):
         plt.subplot(3, 1, i+1)
@@ -552,15 +412,9 @@ def main():
         
         time_axis = (t_imu_farm[idx_imu_start:idx_imu_start+sz_imu] - t_imu_farm[idx_imu_start]) * 1e-6
         plt.plot(time_axis, uarm_imu[i, :], 'r-', label='Xsens DOT')
-        plt.plot(time_axis, uarm_est[i, :], 'b-', label='Est')
+        # plt.plot(time_axis, uarm_est[i, :], 'b-', label='Est')
         plt.plot(time_axis, uarm_int[i, :], 'm--', label='Int')
         
-        # if sz_ground <= len(t_image):
-        #     time_ground = (t_image[:sz_ground] - t_imu_farm[idx_imu_start]) * 1e-6
-        #     plt.plot(time_ground, uarm_ground[i, :sz_ground], 'g-', label='Ground Truth')
-        
-        # 真值数据
-        # 应用手动偏移
         g_start = max(0, ground_offset)
         g_end = min(sz_ground, len(t_image) + ground_offset)
         t_start = max(0, -ground_offset)
@@ -569,8 +423,8 @@ def main():
         
         if length > 0:
             time_ground = (t_image[t_start:t_start+length] - t_imu_farm[idx_imu_start]) * 1e-6
-            plt.plot(time_ground, uarm_ground[i, g_start:g_start+length], 'g-', label='Ground Truth')
-        
+            # plt.plot(time_ground, uarm_ground[i, g_start:g_start+length], 'g-', label='Ground Truth')
+
         plt.ylabel(chr(ord('x') + i))
         plt.legend()
         plt.grid(True, alpha=0.3)
@@ -579,8 +433,8 @@ def main():
     plt.tight_layout()
     plt.show()
     
-    # 计算角度误差
-    print("正在计算角度误差...")
+    # calculate angle error
+    print("Calculating angle error...")
     err_angle_int = np.full(sz_ground, np.nan)
     err_angle_imu = np.full(sz_ground, np.nan)
     err_angle_est = np.full(sz_ground, np.nan)
@@ -589,40 +443,18 @@ def main():
     debug_est = np.full(sz_ground, np.nan)
     debug_ground = np.full(sz_ground, np.nan)
     
-    # for i in range(sz_ground):
-    #     t = t_image[i]
-        
-    #     # 找到最近的IMU时间
-    #     i_imu = np.where(t_imu_farm <= t)[0]
-    #     if len(i_imu) > 0:
-    #         idx_imu = i_imu[-1] - idx_imu_start - 1
-    #         if 0 <= idx_imu < sz_imu:
-    #             err_angle_int[i] = angle_int[idx_imu] - angle_ground[i]
-    #             err_angle_imu[i] = angle_imu[idx_imu] - angle_ground[i]
-    #             err_angle_est[i] = angle_est[idx_imu] - angle_ground[i]
-                
-    #             debug_ground[i] = angle_ground[i]
-    #             debug_int[i] = angle_int[idx_imu]
-    #             debug_imu[i] = angle_imu[idx_imu]
-    #             debug_est[i] = angle_est[idx_imu]
-    
-    # 应用手动偏移计算误差
-    # 我们遍历 t_image 的索引 i (对应 estimation 的时间轴)
-    # 对应的 ground truth 索引为 i + ground_offset
-    
     for i in range(len(t_image)):
         t = t_image[i]
         
-        # 对应的 ground truth 索引
         i_ground = i + ground_offset
         
         if 0 <= i_ground < sz_ground:
-            # 找到最近的IMU时间
+            # Find the nearest IMU time
             i_imu = np.where(t_imu_farm <= t)[0]
             if len(i_imu) > 0:
                 idx_imu = i_imu[-1] - idx_imu_start - 1
                 if 0 <= idx_imu < sz_imu:
-                    # 注意：err_angle 数组长度是 sz_ground，我们用 i_ground 作为索引
+                    # Note: err_angle array length is sz_ground, we use i_ground as the index
                     err_angle_int[i_ground] = angle_int[idx_imu] - angle_ground[i_ground]
                     err_angle_imu[i_ground] = angle_imu[idx_imu] - angle_ground[i_ground]
                     err_angle_est[i_ground] = angle_est[idx_imu] - angle_ground[i_ground]
@@ -632,7 +464,6 @@ def main():
                     debug_imu[i_ground] = angle_imu[idx_imu]
                     debug_est[i_ground] = angle_est[idx_imu]
     
-    # 绘制调试图
     plt.figure(figsize=(12, 10))
 
     # Int vs Ground
@@ -674,7 +505,7 @@ def main():
     plt.tight_layout()
     plt.show()
     
-    # 计算并显示统计结果
+    # Calculate and display statistics
     valid_est = ~np.isnan(err_angle_est)
     valid_imu = ~np.isnan(err_angle_imu)
     valid_int = ~np.isnan(err_angle_int)
@@ -694,26 +525,26 @@ def main():
         int_std = np.std(np.rad2deg(np.abs(err_angle_int[valid_int])))
         print(f"[Int] Mean: {int_mean:.2f}°, Std: {int_std:.2f}°")
     
-    # 汇总为 Data 结构
+    # Aggregate into Data structure
     data = Data(
-        # 时间
+        # Time
         t_imu_us=t_imu_farm[idx_imu_start:idx_imu_start+sz_imu],
         t_image_us=t_image,
-        # 四元数轨迹
+        # quaternion results from different methods
         int_uarm=int_uarm,
         int_farm=int_farm,
         est_uarm=qEst_uarm,
         est_farm=qEst_farm,
         imu_uarm=q_imu_uarm,
         imu_farm=q_imu_farm,
-        # 旋转矩阵（T_se，传感器->地球）
+        # Rotation matrices (T_se, sensor->earth)
         R_uarm_int=R_uarm_int,
         R_farm_int=R_farm_int,
         R_uarm_est=R_uarm_est,
         R_farm_est=R_farm_est,
         R_uarm_imu=R_uarm_imu,
         R_farm_imu=R_farm_imu,
-        # 单位向量与角度
+        # Unit 3d vectors and angles
         uarm_int=uarm_int,
         farm_int=farm_int,
         uarm_est=uarm_est,
@@ -723,22 +554,23 @@ def main():
         angle_int=angle_int,
         angle_est=angle_est,
         angle_imu=angle_imu,
-        # 真值
+        # ground truth
         angle_ground=angle_ground,
         uarm_ground=uarm_ground,
         farm_ground=farm_ground,
-        # 观测
+        # Angular velocity
         w_se_uarm=w_se_uarm,
         w_se_farm=w_se_farm,
+        # observations
         kpts_uarm=kpts_uarm,
         kpts_farm=kpts_farm,
-        # 标定
+        # Calibration
         fx=fx,
         fy=fy,
         T_cw=T_cw,
         q_ie=q_ie,
         q_ei=q_ei,
-        # 其他
+        # Other config info
         meta={
             "numParticles": numParticles,
             "hz_imu": hz_imu,
@@ -748,9 +580,8 @@ def main():
         }
     )
     data.ensure_seconds()
-    print(f"Data 已组装：T={sz_imu}, 图像帧={len(t_image)}")
 
-    print("处理完成！")
+    print("Processing completed!")
     return data
 
 if __name__ == "__main__":

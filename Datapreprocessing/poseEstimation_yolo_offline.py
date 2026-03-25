@@ -58,8 +58,8 @@ FPS = 60            # recording frame rate
 TIME_LAPSE = 1/FPS
 THRESHOLD = 0.75
 
-# video_path = project_root / 'Data' / project_name / 'videos' / 'cam03.mp4'
-video_path = project_root / 'Data' / project_name / 'cam3.mp4'
+video_path = project_root / 'Data' / project_name / 'videos' / 'cam01.mp4'
+# video_path = project_root / 'Data' / project_name / 'cam3.mp4'
 cap = cv.VideoCapture(str(video_path))
 fps = cap.get(cv.CAP_PROP_FPS)
 print(fps)

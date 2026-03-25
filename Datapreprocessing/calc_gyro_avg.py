@@ -1,10 +1,19 @@
 import pandas as pd
 
 # 文件路径 (请根据需要修改)
-file_path = r"D:\论文_课设_报告等\实习\Movella_DOT_Data_Exporter-2023.6.0-Windows\data\20251209_200658\uarm_D422CD0080F4_20251209_200554.csv"
+file_path = r"D:\ARCS2\Project Code\Data\20260117162440\imu_data\farm.csv"
+
+# 设置读取行数: None 表示读取所有行，整数 n 表示读取前 n 行
+# 例如: n_rows = 100 (前100行), n_rows = None (所有行)
+n_rows = 150 
 
 # 读取CSV
-df = pd.read_csv(file_path)
+if n_rows:
+    df = pd.read_csv(file_path, nrows=n_rows)
+    print(f"正在计算前 {n_rows} 行的数据...")
+else:
+    df = pd.read_csv(file_path)
+    print("正在计算所有行的数据...")
 
 # 计算平均值
 avg_x = df['Gyr_X'].mean()

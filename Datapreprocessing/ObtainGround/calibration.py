@@ -555,9 +555,7 @@ def calibrate_intrinsics(calib_dir, intrinsics_config_dict):
     '''
 
     try:
-        intrinsics_root = os.path.abspath(os.path.join(calib_dir, 'intrinsics'))
-        cam_subdirs = next(os.walk(intrinsics_root))[1]
-        intrinsics_cam_listdirs_names = sorted([os.path.join(intrinsics_root, d) for d in cam_subdirs])
+        intrinsics_cam_listdirs_names = sorted(next(os.walk(os.path.join(calib_dir, 'intrinsics')))[1])
     except StopIteration:
         logging.exception(f'Error: No {os.path.join(calib_dir, "intrinsics")} folder found.')
         raise Exception(f'Error: No {os.path.join(calib_dir, "intrinsics")} folder found.')
@@ -569,7 +567,7 @@ def calibrate_intrinsics(calib_dir, intrinsics_config_dict):
     intrinsics_square_size = intrinsics_config_dict.get('intrinsics_square_size') / 1000 # convert to meters
     ret, C, S, D, K, R, T = [], [], [], [], [], [], []
 
-    for cam in intrinsics_cam_listdirs_names:
+    for i,cam in enumerate(intrinsics_cam_listdirs_names):
         # Prepare object points
         objp = np.zeros((intrinsics_corners_nb[0]*intrinsics_corners_nb[1],3), np.float32) 
         objp[:,:2] = np.mgrid[0:intrinsics_corners_nb[0],0:intrinsics_corners_nb[1]].T.reshape(-1,2)

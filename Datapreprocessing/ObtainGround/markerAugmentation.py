@@ -32,6 +32,8 @@ import logging
 from Pose2Sim.common import convert_to_c3d, natural_sort_key, read_trc, compute_height
 
 
+import shutil
+
 ## AUTHORSHIP INFORMATION
 __author__ = "Antoine Falisse, adapted by HunMin Kim and David Pagnon"
 __copyright__ = "Copyright 2022, OpenCap"
@@ -318,6 +320,61 @@ def augment_markers_all(config_dict):
             trc_data.insert(1, 'Time', time_col)
             trc_data.to_csv(trc_o, sep='\t', index=False, header=None, lineterminator='\n')
         logging.info(f'Augmented marker coordinates are stored at {trc_path_out}.')
+
+        # Also save a copy to <project_dir>/ground_data as ground.trc and ground.csv
+        try:
+            dest_dir = os.path.join(project_dir, 'ground_data')
+            os.makedirs(dest_dir, exist_ok=True)
+
+            # Fixed names as requested
+            dest_trc = os.path.join(dest_dir, 'ground.trc')
+            shutil.copyfile(trc_path_out, dest_trc)
+
+            # Convert TRC to CSV and modify lines:
+            # - remove lines 1, 2, 3 (1-based)
+            # - insert one empty line after line 2 (1-based) of the remaining content
+            dest_csv = os.path.join(dest_dir, 'ground.csv')
+            with open(dest_trc, 'r', encoding='utf-8', errors='ignore') as fin:
+                lines = fin.readlines()
+
+            # Convert tabs to commas per line
+            # Remove first 3 lines (indices 0, 1, 2)
+            # Remaining lines start from index 3
+            # Insert empty line after the new 2nd line (which was index 4 originally)
+            
+            # Original lines:
+            # 0: PathFileType...
+            # 1: DataRate...
+            # 2: 120.0...
+            # 3: Frame#...  <-- This becomes line 1 in CSV
+            # 4:            <-- This becomes line 2 in CSV
+            # 5: 1...       <-- This becomes line 3 in CSV
+            
+            # We want:
+            # Line 1: Frame#...
+            # Line 2: ...
+            # Line 3: (empty)
+            # Line 4: 1...
+            
+            content_lines = lines[3:] # Skip first 3 lines
+            
+            with open(dest_csv, 'w', encoding='utf-8', newline='') as fout:
+                # Write first 2 lines
+                if len(content_lines) >= 2:
+                    fout.write(content_lines[0].replace('\t', ','))
+                    fout.write(content_lines[1].replace('\t', ','))
+                    fout.write('\n') # Insert empty line
+                    # Write the rest
+                    for line in content_lines[2:]:
+                        fout.write(line.replace('\t', ','))
+                else:
+                    # Fallback if file is too short
+                    for line in content_lines:
+                        fout.write(line.replace('\t', ','))
+                        
+            logging.info(f'Saved ground truth data to {dest_dir} (ground.trc, ground.csv)')
+        except Exception as e:
+            logging.warning(f'Failed to save ground data: {e}')
 
         # Save c3d
         if make_c3d:

@@ -1,5 +1,7 @@
 import numpy as np
 import math
+import matplotlib.pyplot as plt
+import os
 try:
 	from numba import njit
 except Exception:
@@ -10,12 +12,13 @@ except Exception:
 from filterpy.monte_carlo import multinomial_resample
 from tqdm.auto import tqdm
 
-from myStateTransitionFcn import myStateTransitionFcn  # type: ignore
-from myMeasurementLikelihoodFcn import myMeasurementLikelihoodFcn  # type: ignore
-
+from myStateTransitionFcn import myStateTransitionFcn
+from myMeasurementLikelihoodFcn import myMeasurementLikelihoodFcn
+from utilspy.quaternion2euler_d import quaternion2euler_d
+from utilspy.euler2quaternion_d import euler2quaternion_d
 
 @njit(fastmath=True)
-def _normalize_quaternions(q):  # type: ignore
+def _normalize_quaternions(q):
 	# q shape expected (4, N); numba-friendly column-wise normalization
 	N = q.shape[1]
 	for j in range(N):
@@ -25,11 +28,9 @@ def _normalize_quaternions(q):  # type: ignore
 		q[0,j] /= n; q[1,j] /= n; q[2,j] /= n; q[3,j] /= n
 
 
-# resampling will use filterpy's multinomial_resample in-place at call sites
-
 
 @njit(fastmath=True)
-def _quat_mean(weights, particles):  # type: ignore
+def _quat_mean(weights, particles):
 	# particles shape (4, N), weights shape (N,) — numba-friendly reduction
 	est0 = 0.0; est1 = 0.0; est2 = 0.0; est3 = 0.0
 	N = particles.shape[1]
@@ -54,10 +55,10 @@ def estimatePose(q0,
 				 T_cw,
 				 stateTransitionFcn,
 				 measurementLikelihoodFcn,
-				 noFilter=False):  # type: ignore
-	# initialize particles around q0 with gaussian noise, then normalize (use shape 4xN)
+				 noFilter=False):
 	particles = np.tile(q0.reshape(4,1), (1,N)) + 0.1*np.random.randn(4,N)
 	_normalize_quaternions(particles)
+
 	weights = np.ones(N)/N
 
 	sz_w = w_sw.shape[0]
@@ -82,7 +83,7 @@ def estimatePose(q0,
 			valid = np.all(krow != 0.0)
 
 			if valid:
-				# correct then predict (mirror MATLAB order)
+				# correct then predict
 				L = measurementLikelihoodFcn(particles, krow, fx, fy, T_cw)
 				weights *= L
 				s = np.sum(weights)
@@ -119,7 +120,6 @@ def estimatePose(q0,
 
 
 if __name__ == "__main__":
-	# minimal smoke test with synthetic data
 	N = 3000
 	q0 = np.array([1.0,0.0,0.0,0.0])
 	T = 15400

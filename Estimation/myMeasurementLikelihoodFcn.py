@@ -1,18 +1,17 @@
-"""Minimal Python version of MATLAB myMeasurementLikelihoodFcn.
-Supports x_pred shape (4,) or (4, N). Returns scalar or ndarray of likelihoods.
-Simplified checks; only uses numpy. Interpolation is linear.
-"""
-
 from __future__ import annotations
 
 from typing import Union
+from utilspy.transFromQuat import transFromQuat
 import numpy as np
 from scipy.interpolate import CubicSpline
+import matplotlib.pyplot as plt
+import os
 
 
-def _rotate_unit_x_batch(qs):  # type: ignore
-	"""Rotate unit X axis by each quaternion (qs shape (4,) or (4,N))."""
+def _rotate_vector_batch(qs, v=np.array([1.0, 0.0, 0.0])):
+	"""Rotate vector v by each quaternion (qs shape (4,) or (4,N))."""
 	qs = np.asarray(qs, dtype=float)
+	v = np.asarray(v, dtype=float).flatten()
 	if qs.ndim == 1:
 		qs = qs.reshape(4, 1)
 	# normalize
@@ -20,11 +19,30 @@ def _rotate_unit_x_batch(qs):  # type: ignore
 	norms[norms == 0] = 1.0
 	qs = qs / norms
 	w = qs[0]; x = qs[1]; y = qs[2]; z = qs[3]
-	# First column of rotation matrix (R * [1,0,0]^T)
-	vx = 1 - 2*(y*y + z*z)
-	vy = 2*(x*y + w*z)
-	vz = 2*(x*z - w*y)
-	out = np.vstack((vx, vy, vz))
+	
+	# v' = v + 2 * r x (r x v + w * v)
+	vx, vy, vz = v[0], v[1], v[2]
+	
+	# r x v
+	rxv_x = y*vz - z*vy
+	rxv_y = z*vx - x*vz
+	rxv_z = x*vy - y*vx
+	
+	# term = r x v + w * v
+	term_x = rxv_x + w*vx
+	term_y = rxv_y + w*vy
+	term_z = rxv_z + w*vz
+	
+	# r x term
+	rxterm_x = y*term_z - z*term_y
+	rxterm_y = z*term_x - x*term_z
+	rxterm_z = x*term_y - y*term_x
+	
+	out_x = vx + 2*rxterm_x
+	out_y = vy + 2*rxterm_y
+	out_z = vz + 2*rxterm_z
+	
+	out = np.vstack((out_x, out_y, out_z))
 	return out if out.shape[1] > 1 else out[:, 0]
 
 
@@ -39,45 +57,33 @@ def myMeasurementLikelihoodFcn(
 	n_samples=10000,
 	sigma=15.0,
 	bin_width=0.05,
-)-> Union[np.ndarray, float]:  # type: ignore
-	# Parse inputs
+)-> Union[np.ndarray, float]:
+
 	y = np.asarray(y, dtype=float).reshape(-1)
-	# Minimal shape assumption
 
 	pt0 = y[0:2]
 	pt1 = y[3:5]
 	d = pt1 - pt0
 	du, dv = d[0], d[1]
 
-	# Sample noisy slopes (du+N)/(dv+N)  43
-	rng = np.random.default_rng(43)
+	rng = np.random.default_rng(8)
 	Gx = sigma * rng.standard_normal(n_samples)
 	Gy = sigma * rng.standard_normal(n_samples)
 	denom = dv + Gy
-	# Avoid division by exact zero by nudging extremely small denominators
+
 	eps = 1e-12
 	denom = np.where(np.abs(denom) < eps, np.sign(denom) * eps, denom)
 	samples: np.ndarray = (du + Gx) / denom
 
-	# Compute predicted slope from orientation
 	q = np.asarray(x_pred, dtype=float)
-	# Conjugate for direction reversal
-	if q.ndim == 1:
-		q_conj = np.array([q[0], -q[1], -q[2], -q[3]], dtype=float)
-	else:
-		q_conj = np.vstack((q[0], -q[1], -q[2], -q[3]))
-	l_w = _rotate_unit_x_batch(q_conj)
-	# Remap axes
-	if l_w.ndim == 1:
-		l_w_correct = np.array([-l_w[2], -l_w[1], -l_w[0]], dtype=np.float64)
-	else:
-		l_w_correct = np.vstack((-l_w[2], -l_w[1], -l_w[0]))
+
+	l_w = _rotate_vector_batch(q, np.array([-1.0, 0.0, 0.0]))
 
 	# camera frame
 	T_ce = np.asarray(T_ce, dtype=float)
 	if T_ce.shape != (3, 3):
 		raise ValueError("T_ce must be a 3x3 matrix.")
-	l_c = T_ce @ l_w_correct  # (3,) or (3,N)
+	l_c = T_ce @ l_w  # (3,) or (3,N)
 
 	# project onto pixel frame and compute predicted slope
 	du_pred = fx * l_c[0]
@@ -93,10 +99,8 @@ def myMeasurementLikelihoodFcn(
 	bw = float(bin_width)
 	s_min, s_max = float(samples.min()), float(samples.max())
 	if not np.isfinite(s_min) or not np.isfinite(s_max) or s_min == s_max:
-		# Degenerate sampling; return near-zero likelihood
 		return 0.0
 
-	# Cap the number of bins (MATLAB histcounts effectively limits to 65536)
 	max_bins = 65536
 	span = float(s_max - s_min)
 	bw_eff: float = float(bw)
@@ -105,7 +109,6 @@ def myMeasurementLikelihoodFcn(
 	
 	bw_half = bw_eff / 2.0
 
-	# Create edges with the (possibly) increased bin width
 	edges = np.arange(s_min, s_max + bw_eff, bw_eff, dtype=float)
 	if edges.size < 2:
 		edges = np.array([s_min - bw_eff, s_min + bw_eff])
@@ -117,26 +120,61 @@ def myMeasurementLikelihoodFcn(
 	density: np.ndarray = counts.astype(float) / float(n_samples)
 
 	# # Cubic spline (MATLAB 'spline' equivalent); allow extrapolation then clamp to >=0
-	# likelihood = CubicSpline(bin_centers, density, extrapolate=True)(x_predicted)
-	# Linear interpolation over histogram bin centers; extrapolate with edge densities
-	if np.isscalar(x_predicted):
-		likelihood = np.interp(x_predicted, bin_centers, density, left=density[0], right=density[-1])
-	else:
-		likelihood = np.interp(x_predicted, bin_centers, density, left=density[0], right=density[-1])
+	likelihood = CubicSpline(bin_centers, density, extrapolate=True)(x_predicted)
+
 	
-	# 可视化直方图和拟合曲线
-	# import matplotlib.pyplot as plt
-	# plt.figure()
-	# plt.hist(samples, bins=edges, density=True, alpha=0.6, color='g', label='Histogram')
-	# x_plot = np.linspace(s_min, s_max, 1000)
-	# y_plot = CubicSpline(bin_centers, density, extrapolate=True)(x_plot)
-	# plt.plot(x_plot, y_plot, 'r-', label='Cubic Spline')
-	# plt.axvline(x=x_predicted if np.isscalar(x_predicted) else x_predicted[0], color='b', linestyle='--', label='Predicted Slope')
-	# plt.title('Likelihood Distribution')
-	# plt.xlabel('Slope')
-	# plt.ylabel('Density')
-	# plt.legend()
-	# plt.show()
+	# Linear interpolation over histogram bin centers; extrapolate with edge densities
+	# if np.isscalar(x_predicted):
+	# 	likelihood = np.interp(x_predicted, bin_centers, density, left=density[0], right=density[-1])
+	# else:
+	# 	likelihood = np.interp(x_predicted, bin_centers, density, left=density[0], right=density[-1])
+	
+	# # Visualization: Save comparison of samples and x_predicted distributions
+	# # Use a function attribute to count calls
+	# if not hasattr(myMeasurementLikelihoodFcn, "call_count"):
+	# 	myMeasurementLikelihoodFcn.call_count = 0
+	
+	# # Save plot for the first few calls
+	# if myMeasurementLikelihoodFcn.call_count < 2: 
+	# 	try:
+	# 		plt.figure(figsize=(10, 6))
+			
+	# 		# Plot samples (Measurement distribution)
+	# 		plt.hist(samples, bins=edges, density=True, alpha=0.5, color='green', label='observations (samples)')
+			
+	# 		# Plot x_predicted (Particle predictions)
+	# 		if np.isscalar(x_predicted):
+	# 			plt.axvline(x=x_predicted, color='blue', linestyle='--', linewidth=2, label='Predicted (Scalar)')
+	# 		else:
+	# 			# Filter out extreme values for plotting if necessary
+	# 			x_pred_valid = x_predicted[np.isfinite(x_predicted)]
+	# 			# Clip to reasonable range for visualization if needed, or just plot
+	# 			# To avoid outliers compressing the view, we can limit to samples range +/- margin
+	# 			s_range = s_max - s_min
+	# 			view_min = s_min - 0.5 * s_range
+	# 			view_max = s_max + 0.5 * s_range
+				
+	# 			# Plot histogram of predictions
+	# 			plt.hist(x_pred_valid, bins=50, density=True, alpha=0.5, color='blue', label='Predicted (Particles)')
+	# 			plt.xlim(view_min, view_max)
+			
+	# 		plt.title(f'Likelihood vs Prediction (Call {myMeasurementLikelihoodFcn.call_count})')
+	# 		plt.xlabel('Slope value')
+	# 		plt.ylabel('Density')
+	# 		plt.legend()
+	# 		plt.grid(True, alpha=0.3)
+			
+	# 		# Save to 'debug_plots' directory
+	# 		save_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'debug_plots')
+	# 		os.makedirs(save_dir, exist_ok=True)
+	# 		save_path = os.path.join(save_dir, f'likelihood_dist_{myMeasurementLikelihoodFcn.call_count}.png')
+	# 		plt.savefig(save_path)
+	# 		plt.close()
+	# 		print(f"Saved debug plot to {save_path}")
+	# 	except Exception as e:
+	# 		print(f"Error plotting likelihood: {e}")
+
+	# myMeasurementLikelihoodFcn.call_count += 1
 
 	return np.maximum(0.0, likelihood)
 
@@ -144,17 +182,23 @@ def myMeasurementLikelihoodFcn(
 if __name__ == "__main__":
 	# Minimal self-test to ensure the function executes
 	# Dummy inputs
-	q = np.array([1.0, 0.0, 0.0, 0.0])  # single quaternion
-	qs = np.array([[1.0, 0.0, 0.0],  # w row after reshape later -> use shape (4,N)
-				   [0.0, 0.0, 0.0],
-				   [0.0, 0.1, 0.2],
-				   [0.0, 0.0, 0.0]])  # batch (w,x,y,z) columns
-	y = np.array([100.0, 200.0, 0.9, 120.0, 230.0])
-	fx, fy = 1000.0, 1000.0
-	T = np.eye(3)
+	# q = np.array([1.0, 0.0, 0.0, 0.0])  # single quaternion
+	# qs = np.array([[1.0, 0.0, 0.0],  # w row after reshape later -> use shape (4,N)
+	# 			   [0.0, 0.0, 0.0],
+	# 			   [0.0, 0.1, 0.2],
+	# 			   [0.0, 0.0, 0.0]])  # batch (w,x,y,z) columns
+	# y = np.array([100.0, 200.0, 0.9, 120.0, 230.0])
+	# fx, fy = 1000.0, 1000.0
+	# T = np.eye(3)
 
-	val_single = myMeasurementLikelihoodFcn(q, y, fx, fy, T)
-	val_batch = myMeasurementLikelihoodFcn(qs, y, fx, fy, T)
-	print("single:", val_single)
-	print("batch:", val_batch)
+	# val_single = myMeasurementLikelihoodFcn(q, y, fx, fy, T)
+	# val_batch = myMeasurementLikelihoodFcn(qs, y, fx, fy, T)
+	# print("single:", val_single)
+	# print("batch:", val_batch)
+
+	# q_rand = np.random.rand(4)
+	# q_rand /= np.linalg.norm(q_rand)
+	q = _rotate_vector_batch(np.array([1.0, 0.0, -1.0, 0.0]), np.array([1.0, 1.0, 1.0]))
+	# print(q_rand)
+	print("rotate single:", q)
 
