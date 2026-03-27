@@ -141,7 +141,7 @@ def main():
     # Manual alignment parameter 
     # positive value means Ground Truth lags and needs to be shifted left; 
     # negative value means Ground Truth leads and needs to be shifted right)
-    ground_offset = -10 # 23
+    ground_offset = -8 # 23
     
     np.random.seed(0)
     
@@ -379,7 +379,7 @@ def main():
         
         time_axis = (t_imu_farm[idx_imu_start:idx_imu_start+sz_imu] - t_imu_farm[idx_imu_start]) * 1e-6
         plt.plot(time_axis, farm_imu[i, :], 'r-', label='Xsens DOT')
-        # plt.plot(time_axis, farm_est[i, :], 'b-', label='Est')
+        plt.plot(time_axis, farm_est[i, :], 'b-', label='Est')
         plt.plot(time_axis, farm_int[i, :], 'm--', label='Int')
 
         g_start = max(0, ground_offset)
@@ -393,7 +393,7 @@ def main():
         
         if length > 0:
             time_ground = (t_image[t_start:t_start+length] - t_imu_farm[idx_imu_start]) * 1e-6
-            # plt.plot(time_ground, farm_ground[i, g_start:g_start+length], 'g-', label='Ground Truth')
+            plt.plot(time_ground, farm_ground[i, g_start:g_start+length], 'g-', label='Ground Truth')
 
         plt.ylabel(chr(ord('x') + i))
         plt.legend()
@@ -412,7 +412,7 @@ def main():
         
         time_axis = (t_imu_farm[idx_imu_start:idx_imu_start+sz_imu] - t_imu_farm[idx_imu_start]) * 1e-6
         plt.plot(time_axis, uarm_imu[i, :], 'r-', label='Xsens DOT')
-        # plt.plot(time_axis, uarm_est[i, :], 'b-', label='Est')
+        plt.plot(time_axis, uarm_est[i, :], 'b-', label='Est')
         plt.plot(time_axis, uarm_int[i, :], 'm--', label='Int')
         
         g_start = max(0, ground_offset)
@@ -423,7 +423,7 @@ def main():
         
         if length > 0:
             time_ground = (t_image[t_start:t_start+length] - t_imu_farm[idx_imu_start]) * 1e-6
-            # plt.plot(time_ground, uarm_ground[i, g_start:g_start+length], 'g-', label='Ground Truth')
+            plt.plot(time_ground, uarm_ground[i, g_start:g_start+length], 'g-', label='Ground Truth')
 
         plt.ylabel(chr(ord('x') + i))
         plt.legend()
